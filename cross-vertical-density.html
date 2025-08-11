@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Densidad Logística - CABA</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://unpkg.com/h3-js@4.1.0/dist/h3-js.umd.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        #map { height: calc(100vh - 150px); }
+        .leaflet-container { background: #f9fafb; }
+        .info-panel-placeholder {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #9ca3af;
+            text-align: center;
+        }
+        .legend {
+            padding: 6px 8px;
+            font: 14px/16px Arial, Helvetica, sans-serif;
+            background: white;
+            background: rgba(255,255,255,0.8);
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            border-radius: 5px;
+            line-height: 18px;
+            color: #555;
+        }
+        .legend i {
+            width: 18px;
+            height: 18px;
+            float: left;
+            margin-right: 8px;
+            opacity: 0.9;
+        }
+    </style>
+    <link rel="preconnect" href="https://rsms.me/">
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div class="container mx-auto p-4">
+        <header class="text-center mb-4">
+            <h1 class="text-3xl font-bold text-gray-900">Dashboard de Densidad Logística</h1>
+            <p class="text-md text-gray-600">Service Center SCF2 - CABA</p>
+            <p class="text-sm text-gray-500">Datos Reales de Entregas • Primera Mitad 2025</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <!-- Columna de Controles y Panel de Info -->
+            <div class="md:col-span-1 bg-white p-4 rounded-lg shadow-md">
+                <h2 class="text-xl font-semibold mb-3 border-b pb-2">Service Center SCF2</h2>
+                <div id="loading-status" class="mb-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+                    Inicializando dashboard...
+                </div>
+                
+                <div id="stats-panel" class="mb-6 space-y-2" style="display: none;">
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <p class="text-sm text-gray-600 font-semibold">Total Entregas</p>
+                        <p class="text-2xl font-bold text-gray-800" id="total-deliveries">-</p>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <p class="text-sm text-gray-600 font-semibold">Rutas Únicas</p>
+                        <p class="text-2xl font-bold text-gray-800" id="total-routes">-</p>
+                    </div>
+                    <div class="bg-gray-50 p-3 rounded-lg">
+                        <p class="text-sm text-gray-600 font-semibold">Período</p>
+                        <p class="text-sm font-bold text-gray-800" id="date-range">-</p>
+                    </div>
+                </div>
+                
+                <h2 class="text-xl font-semibold mb-3 border-b pb-2">Filtros</h2>
+                <div id="filters" class="space-y-2 mb-6">
+                    <div><label class="inline-flex items-center"><input type="checkbox" data-vertical="gm" class="form-checkbox h-5 w-5 text-blue-600" checked> <span class="ml-2">General Merchandise</span></label></div>
+                    <div style="display: none;"><label class="inline-flex items-center"><input type="checkbox" data-vertical="groceries" class="form-checkbox h-5 w-5 text-green-600"> <span class="ml-2">Groceries</span></label></div>
+                    <div style="display: none;"><label class="inline-flex items-center"><input type="checkbox" data-vertical="food" class="form-checkbox h-5 w-5 text-red-600"> <span class="ml-2">Food</span></label></div>
+                    <div style="display: none;"><label class="inline-flex items-center"><input type="checkbox" data-vertical="pharma" class="form-checkbox h-5 w-5 text-indigo-600"> <span class="ml-2">Pharma</span></label></div>
+                </div>
+
+                <h2 class="text-xl font-semibold mb-3 border-b pb-2">Información de la Zona</h2>
+                <div id="info-panel" class="h-64">
+                   <div class="info-panel-placeholder">
+                       <p>Haz clic en un hexágono del mapa<br>para ver los detalles.</p>
+                   </div>
+                </div>
+            </div>
+
+            <!-- Columna del Mapa -->
+            <div class="md:col-span-3 bg-white rounded-lg shadow-md p-2">
+                <div id="map" class="rounded-lg"></div>
+            </div>
+        </div>
+    </div>
+
+<script>
+// --- CONFIGURACIÓN Y DATOS DE ENTRADA ---
+const H3_RESOLUTION = 9;
+const CABA_CENTER = [-34.6037, -58.4375];
+
+// CAMBIO: Polígono GeoJSON más preciso de CABA. Formato: [lat, lng]
+const cabaPolygon = [
+    [
+      [-34.535, -58.453], [-34.539, -58.423], [-34.583, -58.370], [-34.599, -58.355],
+      [-34.635, -58.364], [-34.649, -58.370], [-34.680, -58.410], [-34.705, -58.440],
+      [-34.703, -58.480], [-34.680, -58.510], [-34.640, -58.530], [-34.610, -58.525],
+      [-34.580, -58.505], [-34.560, -58.485], [-34.540, -58.460], [-34.535, -58.453]
+    ]
+];
+
+// Datos de los barrios de CABA (simplificado)
+const barrios = [
+    { name: 'Palermo', center: [-34.588, -58.423] }, { name: 'Belgrano', center: [-34.563, -58.453] },
+    { name: 'Caballito', center: [-34.619, -58.442] }, { name: 'Almagro', center: [-34.609, -58.420] },
+    { name: 'Villa Crespo', center: [-34.598, -58.444] }, { name: 'Recoleta', center: [-34.592, -58.397] },
+    { name: 'San Nicolás', center: [-34.604, -58.381] }, { name: 'Retiro', center: [-34.591, -58.379] },
+    { name: 'Villa Urquiza', center: [-34.575, -58.484] }, { name: 'Flores', center: [-34.633, -58.463] },
+    { name: 'Liniers', center: [-34.646, -58.520] }, { name: 'Mataderos', center: [-34.659, -58.498] },
+    { name: 'La Boca', center: [-34.635, -58.364] }, { name: 'Barracas', center: [-34.642, -58.379] },
+    { name: 'Puerto Madero', center: [-34.617, -58.363] }, { name: 'Saavedra', center: [-34.555, -58.489] },
+    { name: 'Colegiales', center: [-34.579, -58.448] }, { name: 'Chacarita', center: [-34.591, -58.456] },
+    { name: 'Villa Devoto', center: [-34.603, -58.511] }, { name: 'Parque Patricios', center: [-34.638, -58.404] },
+];
+
+// Volúmenes de paquetes por vertical
+const volumes = {
+    gm: 100000,
+    groceries: 20000,
+    food: 40000,
+    pharma: 5000
+};
+
+// --- CARGA DE DATOS REALES ---
+let allOrders = [];
+let cabaHexagonsWithBarrio = [];
+let rawDeliveryData = [];
+let finalHexagonData = {};
+
+function generateCabaHexagons() {
+    const h3Indexes = h3.polygonToCells(cabaPolygon, H3_RESOLUTION);
+    console.log(`Generated ${h3Indexes.length} hexagons for CABA.`);
+    cabaHexagonsWithBarrio = h3Indexes.map(index => {
+        const [lat, lng] = h3.cellToLatLng(index);
+        let closestBarrio = 'N/A';
+        let minDistance = Infinity;
+        barrios.forEach(barrio => {
+            const distance = h3.greatCircleDistance([lat, lng], barrio.center, 'km');
+            if (distance < minDistance) {
+                minDistance = distance;
+                closestBarrio = barrio.name;
+            }
+        });
+        return { h3Index: index, barrio: minDistance < 3 ? closestBarrio : 'Zona Intersticial' };
+    });
+}
+
+async function loadRealData() {
+    try {
+        console.log("Cargando datos optimizados de BigQuery...");
+        document.getElementById('loading-status').innerText = 'Cargando datos de entregas...';
+        
+        const response = await fetch('density_data_optimized.json');
+        const optimizedData = await response.json();
+        
+        console.log(`Datos cargados: ${optimizedData.metadata.total_deliveries.toLocaleString()} entregas en ${Object.keys(optimizedData.hexagons).length} hexágonos`);
+        document.getElementById('loading-status').innerText = `Procesando ${optimizedData.metadata.total_deliveries.toLocaleString()} entregas...`;
+        
+        // Procesamiento de datos optimizados
+        processOptimizedData(optimizedData);
+        
+    } catch (error) {
+        console.error('Error cargando datos:', error);
+        document.getElementById('loading-status').innerText = 'Error cargando datos. Usando simulación...';
+        // Fallback a simulación
+        simulateData();
+    }
+}
+
+function processOptimizedData(optimizedData) {
+    console.log("Procesando datos optimizados...");
+    
+    // Convertir datos optimizados al formato esperado por el dashboard
+    allOrders = [];
+    
+    // Para cada hexágono, crear órdenes representativas
+    Object.entries(optimizedData.hexagons).forEach(([h3Index, hexData]) => {
+        // Usar las entregas de muestra para crear registros
+        if (hexData.sample_deliveries) {
+            hexData.sample_deliveries.forEach(delivery => {
+                allOrders.push({
+                    lat: delivery.lat,
+                    lng: delivery.lng,
+                    vertical: 'gm',
+                    routeId: delivery.route_id,
+                    stopId: `${h3Index}_${delivery.stop_sequence}`,
+                    date: delivery.date ? new Date(delivery.date) : null,
+                    sequence: delivery.stop_sequence,
+                    facility: delivery.facility,
+                    h3Index: h3Index,
+                    hexagonData: hexData // Datos agregados del hexágono
+                });
+            });
+        } else {
+            // Si no hay muestra, crear una entrada representativa usando el centro del hexágono
+            allOrders.push({
+                lat: hexData.center_lat,
+                lng: hexData.center_lng,
+                vertical: 'gm',
+                routeId: 'aggregated',
+                stopId: h3Index,
+                date: hexData.date_range ? new Date(hexData.date_range.start) : null,
+                sequence: hexData.avg_sequence,
+                facility: 'SCF2',
+                h3Index: h3Index,
+                hexagonData: hexData,
+                isAggregated: true
+            });
+        }
+    });
+    
+    console.log(`Procesamiento completo: ${allOrders.length} registros de ejemplo de ${optimizedData.metadata.total_deliveries.toLocaleString()} entregas reales`);
+    
+    // Mostrar estadísticas usando los metadatos
+    updateStatisticsFromOptimized(optimizedData);
+    
+    document.getElementById('loading-status').innerText = 
+        `Datos cargados: ${optimizedData.metadata.total_deliveries.toLocaleString()} entregas reales`;
+    
+    // Actualizar dashboard con datos reales
+    updateDashboard();
+}
+
+// Función fallback para simulación (por si falla la carga)
+function simulateData() {
+    console.log("Usando datos simulados...");
+    allOrders = [];
+    
+    for (let i = 0; i < volumes.gm; i++) {
+        const barrio = barrios[Math.floor(Math.random() * barrios.length)];
+        allOrders.push({
+            lat: barrio.center[0] + (Math.random() - 0.5) * 0.03,
+            lng: barrio.center[1] + (Math.random() - 0.5) * 0.03,
+            vertical: 'gm'
+        });
+    }
+    console.log(`Simulación completa: ${allOrders.length} pedidos generados.`);
+}
+
+function updateStatistics() {
+    const uniqueRoutes = new Set(allOrders.map(o => o.routeId)).size;
+    const dates = allOrders.map(o => o.date).filter(d => d);
+    const minDate = dates.length > 0 ? new Date(Math.min(...dates)) : null;
+    const maxDate = dates.length > 0 ? new Date(Math.max(...dates)) : null;
+    
+    document.getElementById('total-deliveries').textContent = allOrders.length.toLocaleString();
+    document.getElementById('total-routes').textContent = uniqueRoutes.toLocaleString();
+    
+    if (minDate && maxDate) {
+        const formatDate = (date) => date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        document.getElementById('date-range').textContent = `${formatDate(minDate)} - ${formatDate(maxDate)}`;
+    }
+    
+    document.getElementById('stats-panel').style.display = 'block';
+}
+
+function updateStatisticsFromOptimized(optimizedData) {
+    // Calcular rutas únicas de todos los hexágonos
+    const allRoutes = new Set();
+    const allDates = [];
+    
+    Object.values(optimizedData.hexagons).forEach(hexData => {
+        if (hexData.sample_deliveries) {
+            hexData.sample_deliveries.forEach(delivery => {
+                if (delivery.route_id) allRoutes.add(delivery.route_id);
+                if (delivery.date) allDates.push(new Date(delivery.date));
+            });
+        }
+        // Agregar fechas del rango si están disponibles
+        if (hexData.date_range) {
+            if (hexData.date_range.start) allDates.push(new Date(hexData.date_range.start));
+            if (hexData.date_range.end) allDates.push(new Date(hexData.date_range.end));
+        }
+    });
+    
+    document.getElementById('total-deliveries').textContent = optimizedData.metadata.total_deliveries.toLocaleString();
+    document.getElementById('total-routes').textContent = allRoutes.size.toLocaleString();
+    
+    if (allDates.length > 0) {
+        const minDate = new Date(Math.min(...allDates));
+        const maxDate = new Date(Math.max(...allDates));
+        const formatDate = (date) => date.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        document.getElementById('date-range').textContent = `${formatDate(minDate)} - ${formatDate(maxDate)}`;
+    } else {
+        document.getElementById('date-range').textContent = 'Primer semestre 2025';
+    }
+    
+    document.getElementById('stats-panel').style.display = 'block';
+}
+
+// --- CÁLCULO DE DENSIDAD ---
+function calculateDensity(activeVerticals) {
+    console.log("Calculando densidad para:", activeVerticals);
+    
+    // Si tenemos datos optimizados, usarlos directamente
+    if (allOrders.length > 0 && allOrders[0].hexagonData) {
+        return calculateDensityFromOptimized(activeVerticals);
+    }
+    
+    // Fallback al método original para datos simulados
+    const filteredOrders = allOrders.filter(order => activeVerticals.includes(order.vertical));
+    const ordersByHex = {};
+
+    filteredOrders.forEach(order => {
+        const h3Index = h3.latLngToCell(order.lat, order.lng, H3_RESOLUTION);
+        if (!ordersByHex[h3Index]) {
+            ordersByHex[h3Index] = [];
+        }
+        ordersByHex[h3Index].push(order);
+    });
+
+    // Usar variable global para que esté disponible en updateInfoPanel
+    finalHexagonData = {};
+    cabaHexagonsWithBarrio.forEach(({h3Index, barrio}) => {
+        const ordersInHex = ordersByHex[h3Index] || [];
+        const orderCount = ordersInHex.length;
+        
+        let sph = 0;
+        let cps = 250;
+
+        if (orderCount > 0) {
+            const baseSPH = 1.5;
+            const densityFactorSPH = Math.log1p(orderCount);
+            const verticalMixFactorSPH = new Set(ordersInHex.map(o => o.vertical)).size;
+            sph = baseSPH * densityFactorSPH * (1 + (verticalMixFactorSPH - 1) * 0.30);
+            sph = Math.min(sph, 25);
+
+            const baseCPS = 300;
+            const densityFactorCPS = 1 - (Math.min(orderCount, 150) / 180);
+            const verticalMixFactorCPS = 1 - ((verticalMixFactorSPH - 1) * 0.15);
+            cps = baseCPS * densityFactorCPS * verticalMixFactorCPS;
+        }
+
+        finalHexagonData[h3Index] = {
+            h3Index: h3Index,
+            orders: ordersInHex,
+            barrio: barrio,
+            orderCount: orderCount,
+            sph: sph,
+            cps: cps
+        };
+    });
+
+    return finalHexagonData;
+}
+
+function calculateDensityFromOptimized(activeVerticals) {
+    console.log("Usando datos optimizados para cálculo de densidad");
+    
+    finalHexagonData = {};
+    
+    allOrders.forEach(order => {
+        if (order.hexagonData && activeVerticals.includes(order.vertical)) {
+            const h3Index = order.h3Index;
+            const hexData = order.hexagonData;
+            
+            // Encontrar el barrio más cercano
+            let closestBarrio = 'N/A';
+            let minDistance = Infinity;
+            barrios.forEach(barrio => {
+                // Calcular distancia euclidiana simple
+                const latDiff = hexData.center_lat - barrio.center[0];
+                const lngDiff = hexData.center_lng - barrio.center[1];
+                const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
+                if (distance < minDistance) {
+                    minDistance = distance;
+                    closestBarrio = barrio.name;
+                }
+            });
+            
+            // Calcular métricas basadas en los datos reales
+            const orderCount = hexData.delivery_count;
+            let sph = 0;
+            let cps = 250;
+
+            if (orderCount > 0) {
+                const baseSPH = 2.0; // Más agresivo para datos reales
+                const densityFactorSPH = Math.log1p(orderCount);
+                const routeEfficiencyFactor = hexData.unique_routes > 0 ? Math.min(orderCount / hexData.unique_routes, 10) : 1;
+                sph = baseSPH * densityFactorSPH * (1 + routeEfficiencyFactor * 0.1);
+                sph = Math.min(sph, 30);
+
+                const baseCPS = 280;
+                const densityFactorCPS = Math.max(0.3, 1 - (Math.min(orderCount, 200) / 250));
+                const sequenceFactorCPS = hexData.avg_sequence > 0 ? Math.max(0.7, 1 - (hexData.avg_sequence / 50)) : 1;
+                cps = baseCPS * densityFactorCPS * sequenceFactorCPS;
+            }
+
+            finalHexagonData[h3Index] = {
+                h3Index: h3Index,
+                orders: [order], // Orden representativa
+                barrio: minDistance < 3 ? closestBarrio : 'Zona Intersticial',
+                orderCount: orderCount,
+                sph: sph,
+                cps: cps,
+                uniqueRoutes: hexData.unique_routes,
+                avgSequence: hexData.avg_sequence
+            };
+        }
+    });
+    
+    return finalHexagonData;
+}
+
+
+// --- LÓGICA DEL MAPA (LEAFLET) ---
+let map;
+let geojsonLayer;
+let legend;
+
+function initMap() {
+    map = L.map('map').setView(CABA_CENTER, 12);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 20
+    }).addTo(map);
+
+    legend = L.control({position: 'bottomright'});
+    legend.onAdd = function (map) {
+        const div = L.DomUtil.create('div', 'info legend');
+        const grades = [0, 2, 3.5, 5, 8, 12];
+        const labels = ['<strong>SPH (Paradas/Hora)</strong>'];
+        for (let i = 0; i < grades.length; i++) {
+            const from = grades[i];
+            const to = grades[i + 1];
+            labels.push(
+                '<i style="background:' + getColor(from + 0.1) + '"></i> ' +
+                from + (to ? '&ndash;' + to : '+'));
+        }
+        div.innerHTML = labels.join('<br>');
+        return div;
+    };
+    legend.addTo(map);
+}
+
+function getColor(sph) {
+    return sph > 12 ? '#14532d' :
+           sph > 8  ? '#16a34a' :
+           sph > 5  ? '#4ade80' :
+           sph > 3.5? '#facc15' :
+           sph > 2  ? '#fde047' :
+           sph > 0  ? '#ef4444' :
+                      '#e5e7eb';
+}
+
+function drawMap(hexagonData) {
+    if (geojsonLayer) {
+        map.removeLayer(geojsonLayer);
+    }
+
+    const geojsonFeatures = Object.keys(hexagonData).map(h3Index => {
+        const hex = hexagonData[h3Index];
+        const boundary = h3.cellToBoundary(h3Index, true);
+        return {
+            type: 'Feature',
+            properties: {
+                h3Index: h3Index,
+                barrio: hex.barrio,
+                orderCount: hex.orderCount,
+                sph: hex.sph,
+                cps: hex.cps,
+            },
+            geometry: {
+                type: 'Polygon',
+                coordinates: [boundary],
+            },
+        };
+    });
+
+    geojsonLayer = L.geoJSON(geojsonFeatures, {
+        style: function(feature) {
+            return {
+                fillColor: getColor(feature.properties.sph),
+                weight: 0.5,
+                opacity: 1,
+                color: '#6b7280',
+                fillOpacity: 0.4 
+            };
+        },
+        onEachFeature: function(feature, layer) {
+            layer.on({
+                mouseover: function(e) {
+                    const layer = e.target;
+                    layer.setStyle({ weight: 3, color: '#111827' });
+                    if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                        layer.bringToFront();
+                    }
+                },
+                mouseout: function(e) {
+                    geojsonLayer.resetStyle(e.target);
+                },
+                click: function(e) {
+                    updateInfoPanel(e.target.feature.properties);
+                }
+            });
+        }
+    }).addTo(map);
+}
+
+
+function updateInfoPanel(props) {
+    const infoPanel = document.getElementById('info-panel');
+    
+    // Obtener datos adicionales de la zona
+    const hexData = Object.values(finalHexagonData || {}).find(h => h.h3Index === props.h3Index);
+    const routesInHex = hexData ? new Set(hexData.orders.map(o => o.routeId)).size : 0;
+    const avgSequence = hexData && hexData.orders.length > 0 ? 
+        (hexData.orders.reduce((sum, o) => sum + (o.sequence || 0), 0) / hexData.orders.length).toFixed(1) : 0;
+    
+    infoPanel.innerHTML = `
+        <div class="p-2">
+            <h3 class="text-lg font-bold text-gray-800">${props.barrio}</h3>
+            <p class="text-xs text-gray-500 mb-3">H3: ${props.h3Index.substring(0, 10)}...</p>
+            
+            <div class="space-y-2">
+                <div class="bg-blue-50 p-2 rounded-lg">
+                    <p class="text-xs text-blue-800 font-semibold">Entregas</p>
+                    <p class="text-2xl font-bold text-blue-900">${props.orderCount}</p>
+                </div>
+                
+                <div class="bg-green-50 p-2 rounded-lg">
+                    <p class="text-xs text-green-800 font-semibold">Rutas Únicas</p>
+                    <p class="text-2xl font-bold text-green-900">${routesInHex}</p>
+                </div>
+                
+                <div class="bg-purple-50 p-2 rounded-lg">
+                    <p class="text-xs text-purple-800 font-semibold">SPH Estimado</p>
+                    <p class="text-2xl font-bold text-purple-900">${props.sph.toFixed(1)}</p>
+                </div>
+                
+                <div class="bg-orange-50 p-2 rounded-lg">
+                    <p class="text-xs text-orange-800 font-semibold">Secuencia Prom.</p>
+                    <p class="text-2xl font-bold text-orange-900">${avgSequence}</p>
+                </div>
+                
+                <div class="bg-gray-50 p-2 rounded-lg">
+                    <p class="text-xs text-gray-600 font-semibold">CPS Estimado</p>
+                    <p class="text-xl font-bold text-gray-700">$${props.cps.toFixed(0)}</p>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// --- INICIALIZACIÓN Y EVENTOS ---
+document.addEventListener('DOMContentLoaded', () => {
+    initMap();
+    generateCabaHexagons();
+    
+    // Cargar datos reales
+    loadRealData();
+
+    const filterCheckboxes = document.querySelectorAll('#filters input[type="checkbox"]');
+    
+    // Función global para actualizar dashboard
+    window.updateDashboard = function() {
+        const activeVerticals = Array.from(filterCheckboxes)
+            .filter(cb => cb.checked)
+            .map(cb => cb.dataset.vertical);
+        
+        const hexagonData = calculateDensity(activeVerticals);
+        drawMap(hexagonData);
+    }
+
+    filterCheckboxes.forEach(cb => {
+        cb.addEventListener('change', updateDashboard);
+    });
+});
+
+</script>
+
+</body>
+</html>

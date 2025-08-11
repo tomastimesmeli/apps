@@ -21,7 +21,7 @@
         }
 
         .container {
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
             background: rgba(255, 255, 255, 0.95);
             border-radius: 20px;
@@ -41,8 +41,106 @@
         .subtitle {
             text-align: center;
             color: #7f8c8d;
-            margin-bottom: 40px;
+            margin-bottom: 30px;
             font-size: 1.1em;
+        }
+
+        /* Toggle Switch */
+        .mode-toggle {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 40px;
+        }
+
+        .toggle-container {
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 25px;
+            padding: 4px;
+            display: flex;
+            gap: 2px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .toggle-option {
+            padding: 8px 20px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            color: #666;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .toggle-option.active {
+            background: #667eea;
+            color: white;
+            box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+        }
+
+        .toggle-option:hover:not(.active) {
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+        }
+
+        /* Navigation for Journal mode */
+        .nav-menu {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 40px;
+            flex-wrap: wrap;
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: all 0.3s ease;
+        }
+
+        .nav-menu.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .nav-link {
+            padding: 6px 14px;
+            background: rgba(102, 126, 234, 0.1);
+            border-radius: 15px;
+            text-decoration: none;
+            color: #667eea;
+            font-weight: 500;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+            border: 1px solid transparent;
+        }
+
+        .nav-link:hover {
+            background: #667eea;
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        /* Content sections */
+        .content-section {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.4s ease;
+            display: none;
+        }
+
+        .content-section.active {
+            opacity: 1;
+            transform: translateY(0);
+            display: block;
+        }
+
+        .section {
+            margin-bottom: 50px;
+        }
+
+        .section-title {
+            font-size: 1.8em;
+            color: #2c3e50;
+            margin-bottom: 25px;
         }
 
         .projects-grid {
@@ -88,6 +186,7 @@
             border-color: #667eea;
         }
 
+        /* Apps mode styles */
         .project-icon {
             font-size: 2.5em;
             margin-bottom: 15px;
@@ -111,11 +210,12 @@
             position: absolute;
             top: 15px;
             right: 15px;
-            padding: 5px 10px;
-            border-radius: 20px;
-            font-size: 0.7em;
-            font-weight: bold;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.65em;
+            font-weight: 600;
             text-transform: uppercase;
+            z-index: 10;
         }
 
         .tag-done {
@@ -130,6 +230,83 @@
 
         .tag-beta {
             background: #3498db;
+            color: white;
+        }
+
+        /* Journal mode styles */
+        .journal-card {
+            padding: 25px;
+        }
+
+        .project-header {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .journal-card .project-icon {
+            font-size: 2em;
+            margin-bottom: 0;
+        }
+
+        .journal-card .project-title {
+            margin: 0;
+        }
+
+        .project-meta {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 8px 15px;
+            margin-bottom: 15px;
+            font-size: 0.9em;
+        }
+
+        .meta-label {
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .meta-value {
+            color: #555;
+        }
+
+        .learning-highlight {
+            background: rgba(102, 126, 234, 0.1);
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 3px solid #667eea;
+            font-style: italic;
+            color: #2c3e50;
+            margin-top: 15px;
+        }
+
+        .project-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: #374151;
+            background: #ffffff;
+            border: 1.5px solid #e5e7eb;
+            text-decoration: none;
+            font-weight: 500;
+            margin-top: 15px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 0.9em;
+            transition: all 0.2s ease;
+        }
+
+        .project-link:hover {
+            background: #f9fafb;
+            border-color: #d1d5db;
+            color: #111827;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        .week-badge {
+            background: #27ae60;
             color: white;
         }
 
@@ -169,62 +346,399 @@
             .projects-grid {
                 grid-template-columns: 1fr;
             }
+
+            .nav-menu {
+                gap: 8px;
+            }
+
+            .nav-link {
+                padding: 4px 10px;
+                font-size: 0.8em;
+            }
+
+            .toggle-option {
+                padding: 6px 15px;
+                font-size: 0.9em;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>Tom's Playground</h1>
-        <p class="subtitle">Apps desarrolladas por 
-            <span class="author-links">
-                <a href="slack://user?id=USHCCHU3B" class="author-link slack-link">
-                    Tomás Bermúdez
-                    <span class="social-icon">💬</span>
-                </a>
+        <p class="subtitle">
+            <span id="apps-subtitle">Apps desarrolladas por 
+                <span class="author-links">
+                    <a href="slack://user?id=USHCCHU3B" class="author-link slack-link">
+                        Tomás Bermúdez
+                        <span class="social-icon">💬</span>
+                    </a>
+                </span>
             </span>
+            <span id="journal-subtitle" style="display: none;">Documentando mi viaje de aprendizaje en Inteligencia Artificial</span>
         </p>
         
-        <div class="projects-grid">
-            <a href="pomodoro.html" class="project-card">
-                <span class="project-tag tag-done">Done</span>
-                <span class="project-icon">🍅</span>
-                <h2 class="project-title">Pomodoro</h2>
-                <p class="project-description">
-                    Aplicación de productividad basada en la técnica Pomodoro. 
-                    Gestiona tu tiempo con intervalos de trabajo y descanso.
-                </p>
-            </a>
+        <!-- Mode Toggle -->
+        <div class="mode-toggle">
+            <div class="toggle-container">
+                <div class="toggle-option active" onclick="switchMode('apps')">
+                    <span>📱</span> Apps
+                </div>
+                <div class="toggle-option" onclick="switchMode('journal')">
+                    <span>🤖</span> AI Journal
+                </div>
+            </div>
+        </div>
 
-            <a href="delegate.html" class="project-card">
-                <span class="project-tag tag-mock">Mock</span>
-                <span class="project-icon">📋</span>
-                <h2 class="project-title">Delegar Acceso Logístico</h2>
-                <p class="project-description">
-                    Sistema para gestionar y delegar accesos logísticos de manera 
-                    eficiente y segura.
-                </p>
-            </a>
+        <!-- Navigation for Journal mode -->
+        <nav class="nav-menu" id="journal-nav">
+            <a href="#productivity" class="nav-link">Productivity</a>
+            <a href="#metrics" class="nav-link">Metrics</a>
+            <a href="#shipping-apps" class="nav-link">Shipping Apps</a>
+        </nav>
 
-            <a href="nodebroadcast.html" class="project-card">
-                <span class="project-tag tag-beta">Beta</span>
-                <span class="project-icon">🔗</span>
-                <h2 class="project-title">Node Broadcast</h2>
-                <p class="project-description">
-                    Sistema de broadcasting en tiempo real usando Node.js. 
-                    Permite comunicación instantánea entre múltiples clientes.
-                </p>
-            </a>
+        <!-- Apps Content -->
+        <div id="apps-content" class="content-section active">
+            <div class="projects-grid">
+                <a href="pomodoro.html" class="project-card">
+                    <span class="project-tag tag-done">Done</span>
+                    <span class="project-icon">🍅</span>
+                    <h2 class="project-title">Pomodoro</h2>
+                    <p class="project-description">
+                        Aplicación de productividad basada en la técnica Pomodoro. 
+                        Gestiona tu tiempo con intervalos de trabajo y descanso.
+                    </p>
+                </a>
 
-            <a href="https://web.furycloud.io/workspace/genai/verdi-flows/webhook/8295977c-840c-4e09-9808-2c54be3dcd5f/chat" class="project-card" target="_blank">
-                <span class="project-tag tag-beta">Beta</span>
-                <span class="project-icon">🤖</span>
-                <h2 class="project-title">TomBot</h2>
-                <p class="project-description">
-                    Asistente virtual inteligente basado en IA. 
-                    Conversaciones naturales y asistencia automatizada.
-                </p>
-            </a>
+                <a href="delegate.html" class="project-card">
+                    <span class="project-tag tag-mock">Mock</span>
+                    <span class="project-icon">📋</span>
+                    <h2 class="project-title">Delegar Acceso Logístico</h2>
+                    <p class="project-description">
+                        Sistema para gestionar y delegar accesos logísticos de manera 
+                        eficiente y segura.
+                    </p>
+                </a>
+
+                <a href="nodebroadcast.html" class="project-card">
+                    <span class="project-tag tag-beta">Beta</span>
+                    <span class="project-icon">🔗</span>
+                    <h2 class="project-title">Node Broadcast</h2>
+                    <p class="project-description">
+                        Sistema de broadcasting en tiempo real usando Node.js. 
+                        Permite comunicación instantánea entre múltiples clientes.
+                    </p>
+                </a>
+
+                <a href="https://web.furycloud.io/workspace/genai/verdi-flows/webhook/8295977c-840c-4e09-9808-2c54be3dcd5f/chat" class="project-card" target="_blank">
+                    <span class="project-tag tag-beta">Beta</span>
+                    <span class="project-icon">🤖</span>
+                    <h2 class="project-title">TomBot</h2>
+                    <p class="project-description">
+                        Asistente virtual inteligente basado en IA. 
+                        Conversaciones naturales y asistencia automatizada.
+                    </p>
+                </a>
+
+                <a href="https://web.furycloud.io/workspace/genai/verdi-flows/webhook/ee7c418b-d7d6-41f9-8e87-0f71b8ae1cf9/chat" class="project-card" target="_blank">
+                    <span class="project-tag tag-beta">Beta</span>
+                    <span class="project-icon">💬</span>
+                    <h2 class="project-title">Query Chat</h2>
+                    <p class="project-description">
+                        Sistema de chat avanzado para consultas especializadas. 
+                        Interfaz conversacional optimizada para búsquedas y análisis.
+                    </p>
+                </a>
+
+                <a href="cross-vertical-density.html" class="project-card">
+                    <span class="project-tag tag-beta">Beta</span>
+                    <span class="project-icon">🗺️</span>
+                    <h2 class="project-title">Cross Vertical Density</h2>
+                    <p class="project-description">
+                        Dashboard de análisis de densidad logística usando H3 hexágonos. 
+                        Visualización de cobertura y densidad por verticales en CABA.
+                    </p>
+                </a>
+
+                <a href="hola.html" class="project-card">
+                    <span class="project-tag tag-done">Done</span>
+                    <span class="project-icon">👋</span>
+                    <h2 class="project-title">HOLA</h2>
+                    <p class="project-description">
+                        Una página simple y alegre que dice "HOLA" para empezar cada día 
+                        con una sonrisa y energía positiva.
+                    </p>
+                </a>
+            </div>
+        </div>
+
+        <!-- Journal Content -->
+        <div id="journal-content" class="content-section">
+            <!-- Productivity -->
+            <section id="productivity" class="section">
+                <h2 class="section-title">🚀 Productivity</h2>
+                <div class="projects-grid">
+                    <div class="project-card journal-card">
+                        <div class="project-tag tag-done">Done</div>
+                        <div class="project-header">
+                            <span class="project-icon">🍅</span>
+                            <h3 class="project-title">Pomodoro Timer</h3>
+                        </div>
+                        <div class="project-meta">
+                            <span class="meta-label">📅 Fecha:</span>
+                            <span class="meta-value">15/12/2024</span>
+                            <span class="meta-label">📌 Objetivo:</span>
+                            <span class="meta-value">Crear un timer para técnica Pomodoro funcional</span>
+                            <span class="meta-label">🧪 Stack:</span>
+                            <span class="meta-value">HTML5, CSS3, JavaScript, Web APIs</span>
+                        </div>
+                        <p class="project-description">
+                            Aplicación web para gestión de tiempo usando la técnica Pomodoro. Incluye 
+                            temporizadores, notificaciones del navegador y seguimiento de sesiones.
+                        </p>
+                        <div class="learning-highlight">
+                            🧠 <strong>Qué aprendí:</strong> Manejo de Web APIs del navegador para notificaciones, 
+                            gestión de estado en JavaScript vanilla y diseño de UI intuitiva para productividad.
+                        </div>
+                        <a href="pomodoro.html" class="project-link">
+                            Ver App
+                        </a>
+                    </div>
+
+                    <div class="project-card journal-card">
+                        <div class="project-tag tag-beta">Beta</div>
+                        <div class="project-header">
+                            <span class="project-icon">🤖</span>
+                            <h3 class="project-title">TomBot - Asistente Personal</h3>
+                        </div>
+                        <div class="project-meta">
+                            <span class="meta-label">📅 Fecha:</span>
+                            <span class="meta-value">20/12/2024</span>
+                            <span class="meta-label">📌 Objetivo:</span>
+                            <span class="meta-value">Crear asistente conversacional inteligente</span>
+                            <span class="meta-label">🧪 Stack:</span>
+                            <span class="meta-value">LLM API, Webhooks, Conversational AI</span>
+                        </div>
+                        <p class="project-description">
+                            Asistente virtual que utiliza modelos de lenguaje para mantener 
+                            conversaciones naturales y proporcionar asistencia contextual.
+                        </p>
+                        <div class="learning-highlight">
+                            🧠 <strong>Qué aprendí:</strong> La importancia del context management en 
+                            conversaciones largas y cómo estructurar prompts para respuestas consistentes.
+                        </div>
+                        <a href="https://web.furycloud.io/workspace/genai/verdi-flows/webhook/8295977c-840c-4e09-9808-2c54be3dcd5f/chat" class="project-link" target="_blank">
+                            Chatear con TomBot
+                        </a>
+                    </div>
+
+                    <div class="project-card journal-card">
+                        <div class="project-tag tag-done">Done</div>
+                        <div class="project-header">
+                            <span class="project-icon">👋</span>
+                            <h3 class="project-title">HOLA - Daily Happiness</h3>
+                        </div>
+                        <div class="project-meta">
+                            <span class="meta-label">📅 Fecha:</span>
+                            <span class="meta-value">11/08/2025</span>
+                            <span class="meta-label">📌 Objetivo:</span>
+                            <span class="meta-value">Crear un espacio de alegría diaria y bienestar</span>
+                            <span class="meta-label">🧪 Stack:</span>
+                            <span class="meta-value">HTML5, CSS3, Animations, Glassmorphism</span>
+                        </div>
+                        <p class="project-description">
+                            Una página minimalista que dice "HOLA" con diseño moderno y animaciones suaves. 
+                            Pensada para ser el primer saludo del día y generar energía positiva.
+                        </p>
+                        <div class="learning-highlight">
+                            🧠 <strong>Qué aprendí:</strong> A veces las cosas más simples son las más poderosas. 
+                            Un saludo puede cambiar completamente el estado de ánimo y la productividad del día.
+                        </div>
+                        <a href="hola.html" class="project-link">
+                            Saludar
+                        </a>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Metrics -->
+            <section id="metrics" class="section">
+                <h2 class="section-title">📊 Metrics</h2>
+                <div class="projects-grid">
+                    <div class="project-card journal-card">
+                        <div class="project-tag tag-beta">Beta</div>
+                        <div class="project-header">
+                            <span class="project-icon">💬</span>
+                            <h3 class="project-title">Query Chat - Sistema Especializado</h3>
+                        </div>
+                        <div class="project-meta">
+                            <span class="meta-label">📅 Fecha:</span>
+                            <span class="meta-value">22/12/2024</span>
+                            <span class="meta-label">📌 Objetivo:</span>
+                            <span class="meta-value">Chat optimizado para consultas y análisis especializados</span>
+                            <span class="meta-label">🧪 Stack:</span>
+                            <span class="meta-value">LLM API, Advanced Prompting, Query Processing</span>
+                        </div>
+                        <p class="project-description">
+                            Sistema de chat avanzado diseñado para consultas especializadas y análisis profundo. 
+                            Interfaz conversacional optimizada para búsquedas complejas y procesamiento de información.
+                        </p>
+                        <div class="learning-highlight">
+                            🧠 <strong>Qué aprendí:</strong> Diferentes arquitecturas de chat requieren prompts 
+                            especializados. La optimización para tipos específicos de consultas mejora significativamente la experiencia.
+                        </div>
+                        <a href="https://web.furycloud.io/workspace/genai/verdi-flows/webhook/ee7c418b-d7d6-41f9-8e87-0f71b8ae1cf9/chat" class="project-link" target="_blank">
+                            Probar Query Chat
+                        </a>
+                    </div>
+
+                    <div class="project-card journal-card">
+                        <div class="project-tag tag-beta">Beta</div>
+                        <div class="project-header">
+                            <span class="project-icon">🗺️</span>
+                            <h3 class="project-title">Cross Vertical Density</h3>
+                        </div>
+                        <div class="project-meta">
+                            <span class="meta-label">📅 Fecha:</span>
+                            <span class="meta-value">23/12/2024</span>
+                            <span class="meta-label">📌 Objetivo:</span>
+                            <span class="meta-value">Análisis de densidad logística con H3 hexágonos</span>
+                            <span class="meta-label">🧪 Stack:</span>
+                            <span class="meta-value">H3.js, Leaflet, TailwindCSS, GeoJSON</span>
+                        </div>
+                        <p class="project-description">
+                            Dashboard avanzado para análisis de cobertura y densidad logística en CABA. 
+                            Utiliza sistema H3 de Uber para hexágonos y visualización de métricas por verticales.
+                        </p>
+                        <div class="learning-highlight">
+                            🧠 <strong>Qué aprendí:</strong> Los sistemas de indexación geoespacial como H3 son 
+                            fundamentales para análisis logístico. La visualización de datos permite insights inmediatos.
+                        </div>
+                        <a href="cross-vertical-density.html" class="project-link">
+                            Ver Dashboard
+                        </a>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Shipping Apps -->
+            <section id="shipping-apps" class="section">
+                <h2 class="section-title">🏎️ Shipping Apps</h2>
+                <div class="projects-grid">
+                    <div class="project-card journal-card">
+                        <div class="project-tag tag-mock">Mock</div>
+                        <div class="project-header">
+                            <span class="project-icon">📋</span>
+                            <h3 class="project-title">Sistema de Delegación de Accesos</h3>
+                        </div>
+                        <div class="project-meta">
+                            <span class="meta-label">📅 Fecha:</span>
+                            <span class="meta-value">10/12/2024</span>
+                            <span class="meta-label">📌 Objetivo:</span>
+                            <span class="meta-value">Prototipar sistema de gestión de accesos logísticos</span>
+                            <span class="meta-label">🧪 Stack:</span>
+                            <span class="meta-value">HTML5, CSS Grid, JavaScript, Local Storage</span>
+                        </div>
+                        <p class="project-description">
+                            Mockup funcional para gestionar y delegar accesos logísticos. Incluye formularios 
+                            dinámicos, validación de datos y persistencia local para pruebas.
+                        </p>
+                        <div class="learning-highlight">
+                            🧠 <strong>Qué aprendí:</strong> La importancia de crear prototipos rápidos para 
+                            validar conceptos de UI/UX antes de implementar funcionalidades complejas.
+                        </div>
+                        <a href="delegate.html" class="project-link">
+                            Ver Demo
+                        </a>
+                    </div>
+
+                    <div class="project-card journal-card">
+                        <div class="project-tag tag-beta">Beta</div>
+                        <div class="project-header">
+                            <span class="project-icon">🔗</span>
+                            <h3 class="project-title">Node Broadcast System</h3>
+                        </div>
+                        <div class="project-meta">
+                            <span class="meta-label">📅 Fecha:</span>
+                            <span class="meta-value">18/12/2024</span>
+                            <span class="meta-label">📌 Objetivo:</span>
+                            <span class="meta-value">Sistema de broadcasting para comunicación instantánea</span>
+                            <span class="meta-label">🧪 Stack:</span>
+                            <span class="meta-value">Node.js, WebSockets, Socket.io</span>
+                        </div>
+                        <p class="project-description">
+                            Sistema de broadcasting que permite comunicación instantánea entre múltiples clientes. 
+                            Implementa salas de chat, mensajería y eventos en tiempo real.
+                        </p>
+                        <div class="learning-highlight">
+                            🧠 <strong>Qué aprendí:</strong> Los WebSockets son potentes para aplicaciones 
+                            real-time, pero requieren manejo cuidadoso de conexiones y estados de clientes.
+                        </div>
+                        <a href="nodebroadcast.html" class="project-link">
+                            Ver Sistema
+                        </a>
+                    </div>
+                </div>
+            </section>
         </div>
     </div>
+
+    <script>
+        function switchMode(mode) {
+            // Update toggle buttons
+            document.querySelectorAll('.toggle-option').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[onclick="switchMode('${mode}')"]`).classList.add('active');
+
+            // Update subtitles
+            const appsSubtitle = document.getElementById('apps-subtitle');
+            const journalSubtitle = document.getElementById('journal-subtitle');
+            
+            if (mode === 'apps') {
+                appsSubtitle.style.display = 'inline';
+                journalSubtitle.style.display = 'none';
+            } else {
+                appsSubtitle.style.display = 'none';
+                journalSubtitle.style.display = 'inline';
+            }
+
+            // Update navigation
+            const journalNav = document.getElementById('journal-nav');
+            if (mode === 'journal') {
+                journalNav.classList.add('show');
+            } else {
+                journalNav.classList.remove('show');
+            }
+
+            // Switch content sections
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            
+            setTimeout(() => {
+                document.getElementById(`${mode}-content`).classList.add('active');
+            }, 200);
+
+            // Update page title
+            const titleSuffix = mode === 'journal' ? ' - AI Learning Journal' : '';
+            document.title = 'Tom\'s Playground' + titleSuffix;
+        }
+
+        // Smooth scrolling for journal navigation
+        document.querySelectorAll('.nav-link').forEach(link => {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const targetId = this.getAttribute('href').substring(1);
+                const targetElement = document.getElementById(targetId);
+                if (targetElement) {
+                    targetElement.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+    </script>
 </body>
 </html>

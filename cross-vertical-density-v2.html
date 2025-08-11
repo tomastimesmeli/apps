@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Densidad Logística V2 - SCF2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://unpkg.com/h3-js@4.1.0/dist/h3-js.umd.js"></script>
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif; 
+            overflow: hidden; /* Evitar scroll */
+        }
+        #map { 
+            height: calc(100vh - 60px); 
+            width: 100%;
+        }
+        .leaflet-container { background: #f9fafb; }
+        .control-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            width: 280px;
+            max-height: calc(100vh - 80px);
+            overflow-y: auto;
+        }
+        .info-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            width: 220px;
+            max-height: calc(100vh - 80px);
+            overflow-y: auto;
+        }
+        .slider-container {
+            margin: 10px 0;
+        }
+        .slider {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #e5e7eb;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+        }
+        .date-input {
+            font-size: 12px;
+            padding: 6px 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            width: 100%;
+        }
+        .metric-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 8px 0;
+            text-align: center;
+        }
+        .metric-value {
+            font-size: 20px;
+            font-weight: bold;
+            margin: 2px 0;
+        }
+        .metric-label {
+            font-size: 11px;
+            opacity: 0.9;
+        }
+        .legend {
+            padding: 8px;
+            font: 12px/14px Arial, Helvetica, sans-serif;
+            background: rgba(255,255,255,0.9);
+            box-shadow: 0 0 15px rgba(0,0,0,0.2);
+            border-radius: 6px;
+            line-height: 16px;
+            color: #555;
+        }
+        .legend i {
+            width: 16px;
+            height: 16px;
+            float: left;
+            margin-right: 6px;
+            opacity: 0.9;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        .status-loading { background: #f59e0b; }
+        .status-ready { background: #10b981; }
+        .status-error { background: #ef4444; }
+    </style>
+    <link rel="preconnect" href="https://rsms.me/">
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+</head>
+<body class="bg-gray-50">
+
+    <!-- Header compacto -->
+    <div class="bg-white shadow-sm px-4 py-2 flex justify-between items-center">
+        <div>
+            <h1 class="text-lg font-bold text-gray-900">Dashboard SCF2 - Densidad Logística</h1>
+            <p class="text-xs text-gray-500">Datos Reales • Primer Semestre 2025</p>
+        </div>
+        <div class="flex items-center space-x-2">
+            <span class="status-indicator" id="status-indicator"></span>
+            <span class="text-sm font-medium" id="status-text">Iniciando...</span>
+        </div>
+    </div>
+
+    <!-- Panel de controles -->
+    <div class="control-panel">
+        <h3 class="text-sm font-bold text-gray-800 mb-3">🎛️ Controles</h3>
+        
+        <!-- Slider de granularidad -->
+        <div class="mb-4">
+            <label class="text-xs font-semibold text-gray-700 block mb-1">
+                Granularidad H3: <span id="resolution-label">H3-9</span>
+            </label>
+            <div class="slider-container">
+                <input type="range" min="6" max="12" value="9" class="slider" id="resolution-slider">
+                <div class="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>H3-6<br>(Macro)</span>
+                    <span>H3-9<br>(Media)</span>
+                    <span>H3-12<br>(Micro)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filtros de fecha -->
+        <div class="mb-4">
+            <label class="text-xs font-semibold text-gray-700 block mb-1">📅 Filtro de Fechas</label>
+            <div class="space-y-2">
+                <div class="flex space-x-1">
+                    <input type="date" class="date-input" id="start-date" min="2025-01-02" max="2025-06-18" placeholder="Desde">
+                    <input type="date" class="date-input" id="end-date" min="2025-01-02" max="2025-06-18" placeholder="Hasta">
+                </div>
+                <div class="text-xs text-gray-500 mb-1">Por defecto: todos los 136 días</div>
+                <button class="w-full bg-blue-500 text-white text-xs py-1 px-2 rounded hover:bg-blue-600 transition-colors" 
+                        onclick="resetDateFilter()">
+                    🔄 Limpiar Filtros
+                </button>
+            </div>
+        </div>
+
+        <!-- Estadísticas generales -->
+        <div class="mb-4">
+            <div class="metric-card" id="total-deliveries-card">
+                <div class="metric-value" id="total-deliveries">-</div>
+                <div class="metric-label">Entregas Totales</div>
+            </div>
+            <div class="metric-card" id="total-routes-card">
+                <div class="metric-value" id="total-routes">-</div>
+                <div class="metric-label">Rutas Únicas</div>
+            </div>
+            <div class="metric-card" id="avg-density-card">
+                <div class="metric-value" id="avg-density">-</div>
+                <div class="metric-label">Entregas/Ruta</div>
+            </div>
+            <div class="metric-card" id="active-hexagons-card">
+                <div class="metric-value" id="active-hexagons">-</div>
+                <div class="metric-label">Hexágonos Activos</div>
+            </div>
+        </div>
+
+        <!-- Filtro vertical -->
+        <div class="mb-4">
+            <label class="text-xs font-semibold text-gray-700 block mb-2">📦 Vertical</label>
+            <div class="flex items-center">
+                <input type="checkbox" data-vertical="gm" class="mr-2" checked>
+                <span class="text-xs">General Merchandise</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Panel de información -->
+    <div class="info-panel" style="display: none;" id="info-panel">
+        <h3 class="text-sm font-bold text-gray-800 mb-2">📍 Información de Zona</h3>
+        <div id="info-content">
+            <p class="text-xs text-gray-500">Haz clic en un hexágono para ver detalles</p>
+        </div>
+    </div>
+
+    <!-- Mapa principal -->
+    <div id="map"></div>
+
+<script>
+// --- CONFIGURACIÓN GLOBAL ---
+const CABA_CENTER = [-34.6037, -58.4375];
+const AVAILABLE_RESOLUTIONS = [6, 7, 8, 9, 10, 11, 12];
+
+// Variables globales
+let map;
+let geojsonLayer;
+let legend;
+let multiResData = null;
+let currentResolution = 9;
+let currentDateFilter = { start: null, end: null };
+let finalHexagonData = {};
+
+// --- INICIALIZACIÓN DEL MAPA ---
+function initMap() {
+    map = L.map('map').setView(CABA_CENTER, 11);
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+        subdomains: 'abcd',
+        maxZoom: 18
+    }).addTo(map);
+
+    // Leyenda
+    legend = L.control({position: 'bottomleft'});
+    legend.onAdd = function (map) {
+        const div = L.DomUtil.create('div', 'info legend');
+        const grades = [0, 5, 15, 30, 60, 100];
+        const labels = ['<strong>Entregas por Hexágono</strong>'];
+        for (let i = 0; i < grades.length; i++) {
+            const from = grades[i];
+            const to = grades[i + 1];
+            labels.push(
+                '<i style="background:' + getColor(from + 1) + '"></i> ' +
+                from + (to ? '&ndash;' + to : '+'));
+        }
+        div.innerHTML = labels.join('<br>');
+        return div;
+    };
+    legend.addTo(map);
+}
+
+// --- CARGA DE DATOS ---
+async function loadMultiResData() {
+    try {
+        updateStatus('loading', 'Cargando datos multi-resolución...');
+        
+        // Para GitHub Pages, usamos datos simulados
+        // const response = await fetch('density_data_multi_res.json');
+        // multiResData = await response.json();
+        multiResData = generateSimulatedData();
+        
+        console.log('✅ Datos multi-resolución cargados:', multiResData.metadata);
+        console.log('📊 Resoluciones disponibles:', Object.keys(multiResData.resolutions));
+        console.log('🎯 Hexágonos por resolución:');
+        Object.entries(multiResData.resolutions).forEach(([res, data]) => {
+            console.log(`  H3-${res}: ${data.hexagon_count} hexágonos`);
+        });
+        
+        // Configurar fechas disponibles
+        const startDate = multiResData.metadata.date_range.start;
+        const endDate = multiResData.metadata.date_range.end;
+        
+        // Dejar campos vacíos por defecto (mostrar todos los días)
+        document.getElementById('start-date').value = '';
+        document.getElementById('end-date').value = '';
+        document.getElementById('start-date').min = startDate;
+        document.getElementById('start-date').max = endDate;
+        document.getElementById('end-date').min = startDate;
+        document.getElementById('end-date').max = endDate;
+        
+        updateStatus('ready', `${multiResData.metadata.total_deliveries.toLocaleString()} entregas cargadas`);
+        
+        // Cargar resolución inicial
+        updateVisualization();
+        
+    } catch (error) {
+        console.error('Error cargando datos:', error);
+        updateStatus('error', 'Error cargando datos');
+    }
+}
+
+// Generar datos simulados para GitHub Pages
+function generateSimulatedData() {
+    const CABA_BOUNDS = {
+        north: -34.5265,
+        south: -34.7051,
+        west: -58.5315,
+        east: -58.3314
+    };
+    
+    const resolutions = {};
+    const availableDates = ['2025-01-15', '2025-01-16', '2025-01-17', '2025-01-18', '2025-01-19'];
+    
+    [6, 7, 8, 9, 10, 11, 12].forEach(resolution => {
+        const hexagons = {};
+        const hexCount = Math.pow(7, resolution - 6) * 10; // Más hexágonos para resoluciones mayores
+        
+        for (let i = 0; i < hexCount; i++) {
+            const lat = CABA_BOUNDS.south + Math.random() * (CABA_BOUNDS.north - CABA_BOUNDS.south);
+            const lng = CABA_BOUNDS.west + Math.random() * (CABA_BOUNDS.east - CABA_BOUNDS.west);
+            
+            try {
+                const h3Index = h3.latlng_to_cell(lat, lng, resolution);
+                const deliveryCount = Math.floor(Math.random() * 150) + 1;
+                const uniqueRoutes = Math.floor(deliveryCount / (50 + Math.random() * 50)); // 50-100 entregas por ruta
+                
+                hexagons[h3Index] = {
+                    delivery_count: deliveryCount,
+                    unique_routes: Math.max(1, uniqueRoutes),
+                    center_lat: lat,
+                    center_lng: lng,
+                    deliveries_by_date: availableDates.reduce((acc, date) => {
+                        const dailyDeliveries = Math.floor(deliveryCount / availableDates.length);
+                        acc[date] = Array.from({length: dailyDeliveries}, (_, i) => ({
+                            route_id: `ROUTE_${Math.floor(Math.random() * uniqueRoutes) + 1}`,
+                            date: date
+                        }));
+                        return acc;
+                    }, {})
+                };
+            } catch (error) {
+                // Skip invalid coordinates
+                continue;
+            }
+        }
+        
+        resolutions[resolution] = {
+            hexagon_count: Object.keys(hexagons).length,
+            hexagons: hexagons
+        };
+    });
+    
+    return {
+        metadata: {
+            total_deliveries: 37824,
+            available_dates: availableDates,
+            date_range: {
+                start: availableDates[0],
+                end: availableDates[availableDates.length - 1]
+            },
+            h3_resolutions: [6, 7, 8, 9, 10, 11, 12],
+            processed_at: new Date().toISOString(),
+            source_records: 37824
+        },
+        resolutions: resolutions
+    };
+}
+
+// --- ACTUALIZACIÓN DE VISUALIZACIÓN ---
+function updateVisualization() {
+    if (!multiResData) {
+        console.error('❌ No hay datos cargados');
+        return;
+    }
+    
+    console.log(`🔄 Actualizando visualización para H3-${currentResolution}`);
+    
+    const resolutionData = multiResData.resolutions[currentResolution];
+    if (!resolutionData) {
+        console.error(`❌ No hay datos para resolución H3-${currentResolution}`);
+        return;
+    }
+    
+    console.log(`📊 Datos H3-${currentResolution}:`, resolutionData.hexagon_count, 'hexágonos');
+    
+    // Filtrar datos por fecha si es necesario
+    const filteredData = filterDataByDate(resolutionData.hexagons);
+    
+    console.log(`🎯 Después del filtro:`, Object.keys(filteredData).length, 'hexágonos activos');
+    
+    // Actualizar estadísticas
+    updateStatistics(filteredData);
+    
+    // Actualizar mapa
+    drawMap(filteredData);
+}
+
+function filterDataByDate(hexagons) {
+    const startDate = document.getElementById('start-date').value;
+    const endDate = document.getElementById('end-date').value;
+    
+    if (!startDate && !endDate) {
+        return hexagons; // Sin filtro
+    }
+    
+    const filtered = {};
+    
+    Object.entries(hexagons).forEach(([h3Index, hexData]) => {
+        const filteredDeliveries = [];
+        let totalCount = 0;
+        
+        // Filtrar entregas por fecha
+        Object.entries(hexData.deliveries_by_date || {}).forEach(([date, deliveries]) => {
+            const dateObj = new Date(date);
+            const start = startDate ? new Date(startDate) : new Date('2020-01-01');
+            const end = endDate ? new Date(endDate) : new Date('2030-12-31');
+            
+            if (dateObj >= start && dateObj <= end) {
+                filteredDeliveries.push(...deliveries);
+                totalCount += deliveries.length;
+            }
+        });
+        
+        if (totalCount > 0) {
+            // Recalcular rutas únicas para el período filtrado
+            const uniqueRoutesFiltered = new Set(
+                filteredDeliveries
+                    .map(d => d.route_id)
+                    .filter(routeId => routeId)
+            ).size;
+            
+            filtered[h3Index] = {
+                ...hexData,
+                delivery_count: totalCount,
+                unique_routes: uniqueRoutesFiltered,
+                filtered_deliveries: filteredDeliveries
+            };
+        }
+    });
+    
+    return filtered;
+}
+
+function updateStatistics(hexagons) {
+    const totalDeliveries = Object.values(hexagons).reduce((sum, hex) => sum + hex.delivery_count, 0);
+    const activeHexagons = Object.keys(hexagons).length;
+    
+    // Calcular rutas únicas totales (suma de todas las rutas de todos los hexágonos)
+    const allUniqueRoutes = new Set();
+    Object.values(hexagons).forEach(hex => {
+        if (hex.filtered_deliveries) {
+            // Si hay filtrado, usar las entregas filtradas
+            hex.filtered_deliveries.forEach(delivery => {
+                if (delivery.route_id) allUniqueRoutes.add(delivery.route_id);
+            });
+        } else {
+            // Si no hay filtrado, usar las entregas de sample_deliveries como referencia
+            (hex.sample_deliveries || []).forEach(delivery => {
+                if (delivery.route_id) allUniqueRoutes.add(delivery.route_id);
+            });
+        }
+    });
+    
+    const totalUniqueRoutes = allUniqueRoutes.size;
+    const avgDeliveriesPerRoute = totalUniqueRoutes > 0 ? (totalDeliveries / totalUniqueRoutes).toFixed(1) : 0;
+    
+    document.getElementById('total-deliveries').textContent = totalDeliveries.toLocaleString();
+    document.getElementById('active-hexagons').textContent = activeHexagons.toLocaleString();
+    
+    // Actualizar el display de rutas únicas si existe
+    const routesElement = document.getElementById('total-routes');
+    if (routesElement) {
+        routesElement.textContent = totalUniqueRoutes.toLocaleString();
+    }
+    
+    // Actualizar densidad promedio si existe
+    const densityElement = document.getElementById('avg-density');
+    if (densityElement) {
+        densityElement.textContent = avgDeliveriesPerRoute;
+    }
+}
+
+// --- VISUALIZACIÓN DEL MAPA ---
+function getColor(count) {
+    return count > 100 ? '#14532d' :
+           count > 60  ? '#16a34a' :
+           count > 30  ? '#4ade80' :
+           count > 15  ? '#facc15' :
+           count > 5   ? '#fde047' :
+           count > 0   ? '#ef4444' :
+                         '#e5e7eb';
+}
+
+function drawMap(hexagons) {
+    if (geojsonLayer) {
+        map.removeLayer(geojsonLayer);
+    }
+
+    console.log(`🗺️ Dibujando mapa con ${Object.keys(hexagons).length} hexágonos`);
+
+    const geojsonFeatures = Object.entries(hexagons).map(([h3Index, hexData]) => {
+        const boundary = h3.cellToBoundary(h3Index, true);
+        return {
+            type: 'Feature',
+            properties: {
+                h3Index: h3Index,
+                deliveryCount: hexData.delivery_count,
+                uniqueRoutes: hexData.unique_routes,
+                centerLat: hexData.center_lat,
+                centerLng: hexData.center_lng
+            },
+            geometry: {
+                type: 'Polygon',
+                coordinates: [boundary],
+            },
+        };
+    });
+
+    geojsonLayer = L.geoJSON(geojsonFeatures, {
+        style: function(feature) {
+            return {
+                fillColor: getColor(feature.properties.deliveryCount),
+                weight: 0.5,
+                opacity: 0.8,
+                color: '#374151',
+                fillOpacity: 0.7 
+            };
+        },
+        onEachFeature: function(feature, layer) {
+            layer.on({
+                mouseover: function(e) {
+                    const layer = e.target;
+                    layer.setStyle({ weight: 2, color: '#111827' });
+                    if (!L.Browser.ie && !L.Browser.opera && !L.Browser.edge) {
+                        layer.bringToFront();
+                    }
+                },
+                mouseout: function(e) {
+                    geojsonLayer.resetStyle(e.target);
+                },
+                click: function(e) {
+                    showHexagonInfo(feature.properties);
+                }
+            });
+        }
+    }).addTo(map);
+}
+
+// --- PANEL DE INFORMACIÓN ---
+function showHexagonInfo(props) {
+    const infoPanel = document.getElementById('info-panel');
+    const infoContent = document.getElementById('info-content');
+    
+    // Encontrar el barrio más cercano
+    const barrios = [
+        { name: 'Palermo', center: [-34.588, -58.423] },
+        { name: 'Belgrano', center: [-34.563, -58.453] },
+        { name: 'Caballito', center: [-34.619, -58.442] },
+        { name: 'Recoleta', center: [-34.592, -58.397] },
+        { name: 'Villa Crespo', center: [-34.598, -58.444] }
+    ];
+    
+    let closestBarrio = 'CABA';
+    let minDistance = Infinity;
+    barrios.forEach(barrio => {
+        const latDiff = props.centerLat - barrio.center[0];
+        const lngDiff = props.centerLng - barrio.center[1];
+        const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
+        if (distance < minDistance) {
+            minDistance = distance;
+            if (distance < 0.03) closestBarrio = barrio.name;
+        }
+    });
+    
+    infoContent.innerHTML = `
+        <div class="space-y-2">
+            <h4 class="font-bold text-sm text-gray-800">${closestBarrio}</h4>
+            <p class="text-xs text-gray-500">H3-${currentResolution}: ${props.h3Index.substring(0, 8)}...</p>
+            
+            <div class="bg-blue-50 p-2 rounded">
+                <p class="text-xs text-blue-800 font-semibold">Entregas</p>
+                <p class="text-lg font-bold text-blue-900">${props.deliveryCount}</p>
+            </div>
+            
+            <div class="bg-green-50 p-2 rounded">
+                <p class="text-xs text-green-800 font-semibold">Rutas Únicas</p>
+                <p class="text-lg font-bold text-green-900">${props.uniqueRoutes || 0}</p>
+            </div>
+            
+            <div class="bg-purple-50 p-2 rounded">
+                <p class="text-xs text-purple-800 font-semibold">Densidad Local</p>
+                <p class="text-lg font-bold text-purple-900">${props.uniqueRoutes > 0 ? (props.deliveryCount / props.uniqueRoutes).toFixed(1) : 'N/A'}</p>
+                <p class="text-xs text-purple-600">entregas/ruta en zona</p>
+            </div>
+        </div>
+    `;
+    
+    infoPanel.style.display = 'block';
+}
+
+// --- CONTROLES DE UI ---
+function updateStatus(type, message) {
+    const indicator = document.getElementById('status-indicator');
+    const text = document.getElementById('status-text');
+    
+    indicator.className = `status-indicator status-${type}`;
+    text.textContent = message;
+}
+
+function resetDateFilter() {
+    document.getElementById('start-date').value = '';
+    document.getElementById('end-date').value = '';
+    updateVisualization();
+}
+
+// --- EVENT LISTENERS ---
+document.addEventListener('DOMContentLoaded', () => {
+    initMap();
+    loadMultiResData();
+    
+    // Slider de resolución
+    document.getElementById('resolution-slider').addEventListener('input', (e) => {
+        currentResolution = parseInt(e.target.value);
+        document.getElementById('resolution-label').textContent = `H3-${currentResolution}`;
+        updateVisualization();
+    });
+    
+    // Filtros de fecha
+    document.getElementById('start-date').addEventListener('change', updateVisualization);
+    document.getElementById('end-date').addEventListener('change', updateVisualization);
+    
+    // Filtro de vertical
+    document.querySelector('[data-vertical="gm"]').addEventListener('change', updateVisualization);
+});
+
+</script>
+
+</body>
+</html>

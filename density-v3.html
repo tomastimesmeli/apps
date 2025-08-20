@@ -3,43 +3,1374 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Density v3 - Tom's Playground</title>
+    <title>Dashboard de Densidad Logística V3 - SCF2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://unpkg.com/h3-js@4.1.0/dist/h3-js.umd.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: #333;
-            margin: 0;
-            min-height: 100vh;
-            padding: 20px;
+        body { font-family: 'Inter', sans-serif; overflow: hidden; }
+        #map { height: calc(100vh - 60px); width: 100%; }
+        .leaflet-container { background: #f9fafb; }
+        /* Revert to previous light glassmorphism styles */
+        .control-panel { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            z-index: 900; 
+            background: rgba(255, 255, 255, 0.95); 
+            backdrop-filter: blur(10px); 
+            border-radius: 0 12px 12px 0; 
+            padding: 15px; 
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1); 
+            width: 300px; 
+            height: 100vh; 
+            overflow-y: auto; 
         }
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 16px;
-            padding: 28px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-        }
-        h1 { margin-top: 0; font-weight: 300; }
-        .back-link { color: #667eea; text-decoration: none; }
-        .badge { display: inline-block; background: #3498db; color: #fff; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
-        .section { margin-top: 20px; }
-        .coming { background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; }
+        .slider { width: 100%; height: 6px; border-radius: 3px; background: #e5e7eb; outline: none; -webkit-appearance: none; }
+        .slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #667eea; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
+        /* Right side panel for stats + zone info */
+        .info-panel { position: fixed; top: 0; right: 0; z-index: 1000; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); border-radius: 12px 0 0 12px; padding: 15px; box-shadow: 0 8px 32px rgba(0,0,0,0.1); width: 450px; height: 100vh; overflow-y: auto; }
+        .slider { width: 100%; height: 6px; border-radius: 3px; background: #e5e7eb; outline: none; -webkit-appearance: none; }
+        .slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #667eea; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.2); }
+        .date-input { font-size: 12px; padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; width: 100%; }
+        .metric-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 10px; border-radius: 8px; margin: 8px 0; text-align: center; }
+        .metric-value { font-size: 20px; font-weight: bold; margin: 2px 0; }
+        .metric-label { font-size: 11px; opacity: 0.9; }
+        .legend { padding: 8px; font: 12px/14px Arial, Helvetica, sans-serif; background: rgba(255,255,255,0.9); box-shadow: 0 0 15px rgba(0,0,0,0.2); border-radius: 6px; line-height: 16px; color: #555; }
+        .legend i { width: 16px; height: 16px; float: left; margin-right: 6px; opacity: 0.9; }
+        .status-indicator { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+        .status-loading { background: #f59e0b; }
+        .status-ready { background: #10b981; }
+        .status-error { background: #ef4444; }
+        .bar { background: linear-gradient(180deg,#667eea,#764ba2); width: 18px; border-radius: 4px 4px 0 0; position: relative; }
+        .bar::after { content: attr(data-label); position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.75); color: #fff; padding: 2px 6px; border-radius: 4px; font-size: 10px; white-space: nowrap; opacity: 0; pointer-events: none; }
+        .bar:hover::after { opacity: 1; }
+        .header-bar { position: relative; z-index: 950; }
+        .header-content { transition: margin-left 0.2s ease; }
+        .panel-open .header-content { margin-left: 300px; }
+        .panel-hidden .control-panel { display: none; }
+        .panel-open #map { margin-left: 300px; width: calc(100% - 300px); }
+        .header-bar { display: none; }
+        .panel-hidden #map { margin-left: 0; width: 100%; }
+        /* Center labels placed as divIcons */
+        .hex-label { transform: translate(-50%, -50%); pointer-events: none; }
+        .hex-label-inner { font-size: 13px; font-weight: 600; color: #111827; text-align: center; text-shadow: 0 0 3px rgba(255,255,255,0.9); }
     </style>
+    <link rel="preconnect" href="https://rsms.me/"><link rel="stylesheet" href="https://rsms.me/inter/inter.css">
     <link rel="icon" href="data:,">
  </head>
-<body>
-    <div class="container">
-        <a href="index.html" class="back-link">← Volver</a>
-        <h1>Density v3 <span class="badge">Beta</span></h1>
-        <p>Versión 3 del dashboard de densidad H3 con mejoras de rendimiento, UX, y estrategia de datos híbrida.</p>
+<body class="bg-gray-50">
+    <!-- header removed as requested -->
 
-        <div class="section coming">
-            <h3>En construcción</h3>
-            <p>Estamos preparando la integración de datos y visualizaciones. Vuelve pronto.</p>
+    <div class="control-panel">
+        <h3 class="text-sm font-bold text-gray-800 mb-3">🎛️ Settings</h3>
+        <div class="mb-3">
+            <label class="text-xs font-semibold text-gray-700 block mb-1">🗂️ Dataset</label>
+            <select id="dataset-select" class="w-full text-xs border rounded px-2 py-1">
+                <option value="data/density_v3.csv">v3</option>
+                <option value="data/density_v3.1.csv" selected>v3.1 (default)</option>
+            </select>
+        </div>
+        <div class="mb-4">
+            <label class="text-xs font-semibold text-gray-700 block mb-1">H3 resolution: <span id="resolution-label">H3-9</span></label>
+            <input type="range" min="6" max="12" value="9" class="slider" id="resolution-slider">
+            <div class="flex justify-between text-xs text-gray-500 mt-1">
+                <span>H3-6</span><span>H3-9</span><span>H3-12</span>
+            </div>
+            <div class="text-[11px] text-gray-600 mt-2" id="active-hexagons-inline">00:00 – 00:30 • 0 hex</div>
+        </div>
+        <div class="mb-4">
+            <label class="text-xs font-semibold text-gray-700 block mb-1">⏱️ Time range</label>
+            <select id="time-mode" class="w-full text-xs border rounded px-2 py-1 mb-2">
+                <option value="all">All time (no filter)</option>
+                <option value="slows">Slows (3 days)</option>
+                <option value="nextday">Next Day (full day)</option>
+                <option value="sameday">Same Day (after 13:00)</option>
+                <option value="3hour">3-hour (h→h+3)</option>
+                <option value="1hour">1-hour (h→h+1)</option>
+                <option value="30min">Instant 30' (h:mm→h:mm+30')</option>
+            </select>
+            <div id="time-inputs" class="space-y-2">
+                <!-- Slows -->
+                <div id="inputs-slows" style="display:none">
+                    <label class="text-[11px] text-gray-600">Start date</label>
+                    <div class="flex items-center gap-2 mb-1">
+                        <button id="slows-prev" class="px-2 py-1 border rounded text-xs">‹</button>
+                        <input type="date" class="date-input" id="slows-date">
+                        <button id="slows-next" class="px-2 py-1 border rounded text-xs">›</button>
+                    </div>
+                    <p class="text-[10px] text-gray-500">Auto end: d+3</p>
+                </div>
+                <!-- Next Day -->
+                <div id="inputs-nextday" style="display:none">
+                    <label class="text-[11px] text-gray-600">Date</label>
+                    <div class="flex items-center gap-2 mb-1">
+                        <button id="nextday-prev" class="px-2 py-1 border rounded text-xs">‹</button>
+                        <input type="date" class="date-input" id="nextday-date">
+                        <button id="nextday-next" class="px-2 py-1 border rounded text-xs">›</button>
+                    </div>
+                </div>
+                <!-- Same Day -->
+                <div id="inputs-sameday" style="display:none">
+                    <label class="text-[11px] text-gray-600">Date (after 13:00)</label>
+                    <div class="flex items-center gap-2 mb-1">
+                        <button id="sameday-prev" class="px-2 py-1 border rounded text-xs">‹</button>
+                        <input type="date" class="date-input" id="sameday-date">
+                        <button id="sameday-next" class="px-2 py-1 border rounded text-xs">›</button>
+                    </div>
+                </div>
+                <!-- 3-hour -->
+                <div id="inputs-3hour" style="display:none">
+                    <label class="text-[11px] text-gray-600">Date / Time</label>
+                    <div class="flex items-center gap-2 mb-1">
+                        <button id="threehour-prev" class="px-2 py-1 border rounded text-xs">‹</button>
+                        <input type="date" class="date-input mb-1" id="threehour-date">
+                        <button id="threehour-next" class="px-2 py-1 border rounded text-xs">›</button>
+                    </div>
+                    <input type="range" min="0" max="23" value="0" class="slider" id="threehour-start">
+                    <div class="text-[10px] text-gray-500" id="threehour-label">00:00 – 03:00</div>
+                </div>
+                <!-- 1-hour -->
+                <div id="inputs-1hour" style="display:none">
+                    <label class="text-[11px] text-gray-600">Date / Time</label>
+                    <div class="flex items-center gap-2 mb-1">
+                        <button id="onehour-prev" class="px-2 py-1 border rounded text-xs">‹</button>
+                        <input type="date" class="date-input mb-1" id="onehour-date">
+                        <button id="onehour-next" class="px-2 py-1 border rounded text-xs">›</button>
+                    </div>
+                    <input type="range" min="0" max="23" value="0" class="slider" id="onehour-start">
+                    <div class="text-[10px] text-gray-500" id="onehour-label">00:00 – 01:00</div>
+                </div>
+                <!-- 30min (slider) -->
+                <div id="inputs-30min" style="display:none">
+                    <label class="text-[11px] text-gray-600">Date / Time</label>
+                    <div class="flex items-center gap-2 mb-1">
+                        <button id="thirty-prev" class="px-2 py-1 border rounded text-xs">‹</button>
+                        <input type="date" class="date-input mb-1" id="thirty-date">
+                        <button id="thirty-next" class="px-2 py-1 border rounded text-xs">›</button>
+                    </div>
+                    <input type="range" min="0" max="47" value="0" class="slider" id="thirty-slot">
+                    <div class="text-[10px] text-gray-500" id="thirty-label">00:00 – 00:30</div>
+                </div>
+                
+            </div>
+        </div>
+        <!-- Filtros adicionales -->
+        <div class="mb-3">
+            <label class="text-xs font-semibold text-gray-700 block mb-1">🌎 Country</label>
+            <select id="country-filter" class="w-full text-xs border rounded px-2 py-1"></select>
+        </div>
+        <div class="mb-3">
+            <label class="text-xs font-semibold text-gray-700 block mb-1">🗺️ Region</label>
+            <select id="region-filter" class="w-full text-xs border rounded px-2 py-1" multiple size="5"></select>
+        </div>
+        <div class="mb-3">
+            <label class="text-xs font-semibold text-gray-700 block mb-1">🏘️ Neighborhood</label>
+            <select id="city-filter" class="w-full text-xs border rounded px-2 py-1"></select>
+        </div>
+        <div class="mb-3">
+            <div class="flex items-center justify-between">
+                <label class="text-xs font-semibold text-gray-700">🚚 Only Extra</label>
+                <input type="checkbox" id="only-extra" class="h-4 w-4">
+            </div>
+        </div>
+        <div class="mb-3">
+            <div class="flex items-center justify-between">
+                <label class="text-xs font-semibold text-gray-700">🎨 Colors: Productivity</label>
+                <input type="checkbox" id="color-mode-toggle" class="h-4 w-4" checked>
+            </div>
         </div>
     </div>
+
+    <div class="info-panel" id="info-panel">
+        <h3 class="text-sm font-bold text-gray-800 mb-2">📊 Stats</h3>
+        <div class="mb-3">
+            <div class="metric-card">
+                <div class="flex items-baseline justify-between">
+                    <div class="metric-value" id="total-deliveries">-</div>
+                    <div class="text-sm font-semibold">SHP</div>
+                </div>
+            </div>
+        </div>
+        <h3 class="text-sm font-bold text-gray-800 mb-2 mt-3">🏷️ Daily Shp + Extra %</h3>
+        <canvas id="carrier-chart" style="height:180px;"></canvas>
+        <h3 class="text-sm font-bold text-gray-800 mb-2 mt-3">👥 Daily unique drivers (Extra)</h3>
+        <canvas id="drivers-chart" style="height:180px;"></canvas>
+        <h3 class="text-sm font-bold text-gray-800 mb-2 mt-3">⏰ Hourly distribution</h3>
+        <canvas id="hourly-chart" style="height:180px;"></canvas>
+        <h3 class="text-sm font-bold text-gray-800 mb-2 mt-3">⚙️ Productivity (Extra)</h3>
+        <canvas id="productivity-chart" style="height:180px;"></canvas>
+        
+    </div>
+
+    <div id="map"></div>
+
+    <script>
+    // --- CONFIG ---
+    const AVAILABLE_RESOLUTIONS_DEFAULT = [6,7,8,9,10,11,12];
+    const CABA_CENTER = [-34.6037, -58.4375];
+
+    // --- STATE ---
+    let map, geojsonLayer, legend, zoomControl;
+    let rawRows = [];
+    let currentResolution = 8;
+    let currentDateFilter = { start: null, end: null };
+    // Aggregates for defaults
+    let sortedDates = [];
+    let dailyCounts = {};
+    let dailyCountsPost13 = {};
+    let dailyHourCounts = {};   // date -> [24]
+    let dailyHalfHourCounts = {}; // date -> [48]
+    let lastSaturdayGlobal = null; // último sábado disponible en datos
+    let peakDateGlobal = null; // fecha pico por volumen
+    let selectedHexSet = new Set(); // toggled H3 selections
+    // Charts
+    let chartCarrier, chartDrivers, chartHourly, chartProductivity;
+    const WEEKDAY = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    function dayLabel(iso) {
+        if (!iso) return '';
+        const d = new Date(iso + 'T00:00:00Z');
+        return `${WEEKDAY[d.getUTCDay()]} ${iso.slice(5)}`;
+    }
+    function addDays(iso, delta) {
+        const d = new Date(iso + 'T00:00:00Z');
+        d.setUTCDate(d.getUTCDate() + delta);
+        return d.toISOString().slice(0,10);
+    }
+    function getSelectedDate() {
+        const ids = ['onehour-date','nextday-date','sameday-date','threehour-date','thirty-date','slows-date'];
+        for (const id of ids) { const el = document.getElementById(id); if (el && el.value) return el.value; }
+        // peak date fallback
+        let best = null, bestCount = -1; Object.entries(dailyCounts).forEach(([d,c])=>{ if (c>bestCount) { best=d; bestCount=c; } });
+        return best || '2025-08-09';
+    }
+    function ensureDateValue(inputId) {
+        const el = document.getElementById(inputId); if (!el) return null;
+        if (!el.value) {
+            // set to peak date
+            let best = null, bestCount = -1; Object.entries(dailyCounts).forEach(([d,c])=>{ if (c>bestCount) { best=d; bestCount=c; } });
+            el.value = best || '2025-08-09';
+        }
+        return el.value;
+    }
+    function getWindowDates(centerIso, radius=3) {
+        const out=[]; for (let i=-radius;i<=radius;i++){ out.push(addDays(centerIso, i)); } return out;
+    }
+    function getWeekMonSun(centerIso) {
+        const d = new Date(centerIso + 'T00:00:00Z');
+        const dow = d.getUTCDay(); // 0 Sun .. 6 Sat
+        const deltaToMon = ((dow + 6) % 7); // 0 if Mon, 1 if Tue, ... 6 if Sun
+        const monday = addDays(centerIso, -deltaToMon);
+        const days = []; for (let i=0;i<7;i++) days.push(addDays(monday, i));
+        return { monday, days };
+    }
+    function getConsideredHours() {
+        const tm = document.getElementById('time-mode').value;
+        if (tm === '3hour') { const h0=parseInt(document.getElementById('threehour-start').value||'0'); const h1=Math.min(23,h0+3); const arr=[]; for(let h=h0;h<=h1;h++) arr.push(h); return arr; }
+        if (tm === '1hour') { const h0=parseInt(document.getElementById('onehour-start').value||'0'); return [h0]; }
+        if (tm === '30min') { const slot=parseInt(document.getElementById('thirty-slot').value||'0'); return [Math.floor(slot/2)]; }
+        return Array.from({length:24}, (_,h)=>h);
+    }
+    function colorForProdSolid(val) {
+        if (val >= 3) return '#22c55e';      // green
+        if (val >= 2.5) return '#a3e666';    // yellow-green
+        if (val >= 2) return '#facc15';      // yellow
+        if (val >= 1.5) return '#f59e0b';    // orange
+        return '#ef4444';                    // red
+    }
+    function getVolumeColor(count) {
+        if (!currentVolumeBins) return getColor(count);
+        const [t1,t2,t3,t4,t5] = currentVolumeBins;
+        const colors = ['#ef4444','#fde047','#facc15','#4ade80','#16a34a','#14532d'];
+        if (count <= t1) return colors[0];
+        if (count <= t2) return colors[1];
+        if (count <= t3) return colors[2];
+        if (count <= t4) return colors[3];
+        if (count <= t5) return colors[4];
+        return colors[5];
+    }
+    function updateLegend(mode) {
+        if (!legend) return;
+        legend.remove();
+        legend = L.control({position: 'bottomleft'});
+        legend.onAdd = function () {
+            const div = L.DomUtil.create('div', 'legend');
+            if (mode === 'prod') {
+                div.innerHTML = '<strong>Productivity (Extra)</strong><br>'+
+                    '<i style="background:'+colorForProdSolid(3.1)+'"></i> ≥3<br>'+
+                    '<i style="background:'+colorForProdSolid(2.6)+'"></i> 2.5–3<br>'+
+                    '<i style="background:'+colorForProdSolid(2.1)+'"></i> 2–2.5<br>'+
+                    '<i style="background:'+colorForProdSolid(1.6)+'"></i> 1.5–2<br>'+
+                    '<i style="background:'+colorForProdSolid(1.0)+'"></i> <1.5';
+            } else {
+                div.innerHTML = '<strong>Deliveries per hexagon</strong><br>';
+                if (currentVolumeBins) {
+                    const [t1,t2,t3,t4,t5] = currentVolumeBins.map(x=>Math.round(x));
+                    const labels = [
+                        {c:getVolumeColor(t1-1), txt:`≤ ${t1}`},
+                        {c:getVolumeColor((t1+t2)/2), txt:`${t1+1}–${t2}`},
+                        {c:getVolumeColor((t2+t3)/2), txt:`${t2+1}–${t3}`},
+                        {c:getVolumeColor((t3+t4)/2), txt:`${t3+1}–${t4}`},
+                        {c:getVolumeColor((t4+t5)/2), txt:`${t4+1}–${t5}`},
+                        {c:getVolumeColor(t5+1), txt:`> ${t5}`}
+                    ];
+                    labels.forEach(({c,txt})=>{ div.innerHTML += `<i style="background:${c}"></i> ${txt}<br>`; });
+                } else {
+                    div.innerHTML += '<i style="background:'+getColor(1)+'"></i> dynamic<br>';
+                }
+            }
+            return div;
+        };
+        legend.addTo(map);
+        if (!zoomControl) {
+            zoomControl = L.control.zoom({ position: 'bottomleft' });
+            zoomControl.addTo(map);
+        }
+    }
+    function getNonTimeFilters() {
+        const countryEl = document.getElementById('country-filter');
+        const cityEl = document.getElementById('city-filter');
+        const regionEl = document.getElementById('region-filter');
+        const verticalEl = document.getElementById('vertical-filter');
+        const onlyExtraEl = document.getElementById('only-extra');
+        return {
+            country: countryEl?.value || '',
+            city: cityEl?.value || '',
+            regions: Array.from(regionEl?.selectedOptions || []).map(o => o.value),
+            onlyExtra: !!(onlyExtraEl && onlyExtraEl.checked),
+            vertical: verticalEl?.value || ''
+        };
+    }
+    function rowMatchesNonTimeFilters(r, f) {
+        if (f.country && f.country !== '(All)' && normalizeStr(r.country) !== normalizeStr(f.country)) return false;
+        if (f.city && f.city !== '(All)' && normalizeStr(r.city) !== normalizeStr(f.city)) return false;
+        if (Array.isArray(f.regions) && f.regions.length > 0) {
+            const rowRegion = normalizeStr(r.region);
+            const match = f.regions.some(val => {
+                const v = normalizeStr(val);
+                return rowRegion === v || (v && rowRegion.includes(v));
+            });
+            if (!match) return false;
+        }
+        if (f.onlyExtra) {
+            const carr = normalizeStr(r.carrier);
+            if (!(carr === 'extra' || carr.includes('extra'))) return false;
+        }
+        if (f.vertical && f.vertical !== '(All)' && normalizeStr(r.vertical) !== normalizeStr(f.vertical)) return false;
+        return true;
+    }
+
+    // --- INIT MAP ---
+    function initMap() {
+        if (map) return; // avoid re-initialization and duplicate controls
+        map = L.map('map', { zoomControl: false }).setView(CABA_CENTER, 11);
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap contributors &copy; CARTO', subdomains: 'abcd', maxZoom: 18
+        }).addTo(map);
+
+        legend = L.control({position: 'bottomleft'});
+        legend.onAdd = function () {
+            const div = L.DomUtil.create('div', 'legend');
+            const grades = [0, 5, 15, 30, 60, 100];
+            div.innerHTML = '<strong>Deliveries per hexagon</strong><br>';
+            for (let i = 0; i < grades.length; i++) {
+                const from = grades[i];
+                const to = grades[i + 1];
+                div.innerHTML += '<i style="background:' + getColor(from + 1) + '"></i> ' + from + (to ? '&ndash;' + to : '+') + '<br>';
+            }
+            return div;
+        };
+        legend.addTo(map);
+        if (!zoomControl) {
+            zoomControl = L.control.zoom({ position: 'bottomright' });
+            zoomControl.addTo(map);
+        }
+    }
+
+    // Register Chart.js plugins
+    if (window.Chart && window.ChartDataLabels) {
+        try { Chart.register(window.ChartDataLabels); } catch (_) {}
+    }
+
+    // --- STATUS ---
+    function updateStatus(type, message) {
+        const indicator = document.getElementById('status-indicator');
+        const text = document.getElementById('status-text');
+        if (indicator) indicator.className = `status-indicator status-${type}`;
+        if (text) text.textContent = message;
+    }
+
+    // --- LOAD CSV AND BUILD STRUCTURE ---
+    function num(x) { const n = Number(x); return Number.isFinite(n) ? n : 0; }
+    function toStr(x) { return (x === undefined || x === null) ? '' : String(x); }
+    function parseLat(x) { const n = Number(x); return Number.isFinite(n) ? n : null; }
+    function parseLng(x) { const n = Number(x); return Number.isFinite(n) ? n : null; }
+    function normalizeStr(v) { return (v === undefined || v === null) ? '' : String(v).trim().toLowerCase(); }
+    function slotToLabel(slot) {
+        const s = parseInt(slot || '0');
+        const h = Math.floor(s / 2);
+        const m = (s % 2) * 30;
+        const h2 = Math.floor((s + 1) / 2);
+        const m2 = ((s + 1) % 2) * 30;
+        return `${String(h).padStart(2,'0')}:${m===0?'00':'30'} – ${String(h2).padStart(2,'0')}:${m2===0?'00':'30'}`;
+    }
+    function setOptions(select, values, defaultValue) {
+        if (!select) return;
+        const vals = Array.from(new Set(values.filter(v => v))).sort();
+        const options = ['(All)', ...vals];
+        select.innerHTML = options.map(v => `<option value="${v}">${v}</option>`).join('');
+        if (defaultValue && options.includes(defaultValue)) {
+            select.value = defaultValue;
+        } else if (vals.length === 1) {
+            select.value = vals[0];
+        } else {
+            select.value = '(All)';
+        }
+    }
+
+    function setMultiOptions(select, values, defaults=[]) {
+        if (!select) return;
+        const vals = Array.from(new Set(values.filter(v => v))).sort();
+        select.innerHTML = vals.map(v => `<option value="${v}">${v}</option>`).join('');
+        const want = new Set(defaults);
+        Array.from(select.options).forEach(opt => { opt.selected = want.has(opt.value); });
+    }
+
+    let currentDataPath = 'data/density_v3.1.csv';
+
+    async function loadCsv() {
+        try {
+            updateStatus('loading', 'Loading CSV...');
+            const res = await fetch(currentDataPath);
+            if (!res.ok) throw new Error('No se pudo leer el CSV');
+            const text = await res.text();
+            const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+            // Parse rows using destination lat/lng; ignore stops
+            rawRows = parsed.data.map(r => {
+                let lat = parseLat(
+                    r.latitud_destino || r.lat_destino || r.latitud || r.latitude || r.latitude_destino || r.lat || r.latitud_dstino
+                );
+                let lng = parseLng(
+                    r.longitud_destino || r.lon_destino || r.longitud || r.longitude || r.longitude_destino || r.lng || r.longitud_dstino || r.lon || r.long
+                );
+                // Fallback: if lat/lng missing, try to derive from provided H3 cell (destination preferred)
+                if ((lat === null || lng === null)) {
+                    const h3Cell = toStr(r.h3_destino || r.H3_DESTINO || r.h3Destino || r.h3_index || r.h3 || r.h3_origen || r.H3_ORIGEN);
+                    if (h3Cell) {
+                        try {
+                            const [clat, clng] = h3.cellToLatLng(h3Cell);
+                            lat = (lat === null) ? clat : lat;
+                            lng = (lng === null) ? clng : lng;
+                        } catch (_) { /* ignore invalid h3 */ }
+                    }
+                }
+                const deliveredRaw = r.delivered || r.DELIVERED || r.delivered_at || r.DELIVERED_AT || r.created_at || r.CREATED_AT || r.created || r.CREATED || '';
+                const deliveredIso = deliveredRaw ? deliveredRaw.replace(' ', 'T') : '';
+                const d = deliveredIso ? new Date(deliveredIso) : null;
+                return {
+                    lat, lng,
+                    // Date strictly from `date` column (fallback to delivered-derived only if missing)
+                    date: (function(){
+                        const raw = toStr(r.date || r.DATE || '');
+                        if (raw) {
+                            if (raw.includes('/')) { // assume dd/mm/yyyy
+                                const [dd,mm,yy] = raw.split('/');
+                                if (dd && mm && yy) return `${yy.padStart(4,'0')}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;
+                            }
+                            return raw;
+                        }
+                        return (d ? d.toISOString().slice(0,10) : '');
+                    })(),
+                    hour: d ? d.getHours() : null,
+                    minute: d ? d.getMinutes() : null,
+                    hour_range: toStr(r.hour_range || r.HOUR_RANGE || r.hourRange || ''),
+                    country: toStr(r.country || r.pais || r.COUNTRY || ''),
+                    city: toStr(r.city_destino || r.ciudad_destino || r.CITY_DESTINO || ''),
+                    region: toStr(r.state_destino || r.STATE_DESTINO || r.state || ''),
+                    carrier: toStr(r.carrier || r.CARRIER || ''),
+                    vertical: /food/i.test(toStr(r.vertical || r.VERTICAL || 'Food')) ? 'Food' : toStr(r.vertical || 'Food'),
+                    driver_id: toStr(r.driver_id || r.driverId || r.DRIVER_ID || r.id_driver || r.driverID || r.idDriver || r.conductor_id || r.chofer_id || '')
+                };
+            }).filter(r => r.lat !== null && r.lng !== null);
+
+            const dates = Array.from(new Set(rawRows.map(r => r.date).filter(Boolean))).sort();
+            const countries = rawRows.map(r => r.country);
+            const cities = rawRows.map(r => r.city);
+            const regions = rawRows.map(r => r.region);
+            const carriers = rawRows.map(r => r.carrier);
+            const verticals = rawRows.map(r => r.vertical || 'Food');
+
+            // Configure UI
+            const minRes = 6, maxRes = 12;
+            const slider = document.getElementById('resolution-slider');
+            slider.min = String(minRes); slider.max = String(maxRes);
+            currentResolution = Math.min(Math.max(8, minRes), maxRes);
+            slider.value = String(currentResolution);
+            document.getElementById('resolution-label').textContent = `H3-${currentResolution}`;
+
+            setOptions(document.getElementById('country-filter'), countries);
+            setOptions(document.getElementById('city-filter'), cities);
+            // Region as multi-select, default CABA + Provincia, excluding Córdoba
+            const regionEl = document.getElementById('region-filter');
+            const defaults = Array.from(new Set(regions.filter(Boolean)))
+                .filter(r => /caba/i.test(r) || /provincia/i.test(r))
+                .filter(r => !/cordoba/i.test(r));
+            setMultiOptions(regionEl, regions, defaults);
+            const carrierEl = document.getElementById('carrier-filter');
+            if (carrierEl) setOptions(carrierEl, carriers);
+            setOptions(document.getElementById('vertical-filter'), verticals, 'Food');
+
+            // If the dataset has no Extra carrier, auto-disable the "Only Extra" toggle to avoid empty results
+            try {
+                const hasExtra = carriers.some(c => normalizeStr(c) === 'extra');
+                const onlyEl = document.getElementById('only-extra');
+                if (onlyEl && !hasExtra && onlyEl.checked) {
+                    onlyEl.checked = false;
+                    updateStatus('ready', 'CSV loaded (no Extra found, showing all carriers)');
+                }
+            } catch (_) { /* no-op */ }
+
+            // Build aggregates for defaults
+            sortedDates = dates;
+            dailyCounts = {}; dailyCountsPost13 = {}; dailyHourCounts = {}; dailyHalfHourCounts = {};
+            dates.forEach(d => { dailyCounts[d]=0; dailyCountsPost13[d]=0; dailyHourCounts[d]=Array(24).fill(0); dailyHalfHourCounts[d]=Array(48).fill(0); });
+            rawRows.forEach(r => {
+                if (r.date && dailyCounts[r.date] !== undefined) {
+                    dailyCounts[r.date] += 1;
+                    if (typeof r.hour === 'number') {
+                        if (r.hour >= 13) dailyCountsPost13[r.date] += 1;
+                        dailyHourCounts[r.date][r.hour] += 1;
+                        if (typeof r.minute === 'number') {
+                            const slot = r.hour * 2 + (r.minute >= 30 ? 1 : 0);
+                            dailyHalfHourCounts[r.date][slot] += 1;
+                        }
+                    }
+                }
+            });
+            // compute peak date by total volume
+            peakDateGlobal = null; {
+                let best = -1; dates.forEach(d => { if (dailyCounts[d] > best) { best = dailyCounts[d]; peakDateGlobal = d; } });
+            }
+            // compute last Saturday available in dataset (use midday UTC to avoid TZ shifts)
+            lastSaturdayGlobal = null; {
+                for (let i = dates.length - 1; i >= 0; i--) {
+                    const dd = new Date(dates[i] + 'T12:00:00Z');
+                    const dow = dd.getUTCDay(); // 0=Sun..6=Sat
+                    if (dow === 6) { lastSaturdayGlobal = dates[i]; break; }
+                }
+                if (!lastSaturdayGlobal && dates.length) lastSaturdayGlobal = dates[dates.length-1];
+            }
+
+            // Wire prev/next date buttons for each mode
+            const wireDateNav = (prevId, inputId, nextId) => {
+                const prev = document.getElementById(prevId);
+                const input = document.getElementById(inputId);
+                const next = document.getElementById(nextId);
+                if (!input || !dates.length) return;
+                const move = (delta) => {
+                    const cur = input.value || dates[0];
+                    const idx = dates.indexOf(cur);
+                    const targetIdx = Math.max(0, Math.min(dates.length-1, idx + delta));
+                    input.value = dates[targetIdx];
+                    updateVisualization();
+                };
+                if (prev) prev.addEventListener('click', () => move(-1));
+                if (next) next.addEventListener('click', () => move(+1));
+                input.addEventListener('change', () => updateVisualization());
+            };
+            wireDateNav('slows-prev','slows-date','slows-next');
+            wireDateNav('nextday-prev','nextday-date','nextday-next');
+            wireDateNav('sameday-prev','sameday-date','sameday-next');
+            wireDateNav('threehour-prev','threehour-date','threehour-next');
+            wireDateNav('onehour-prev','onehour-date','onehour-next');
+            wireDateNav('thirty-prev','thirty-date','thirty-next');
+
+            // Force defaults: last Saturday + 21:00 for 1-hour
+            try {
+                const dEl = document.getElementById('onehour-date');
+                if (dEl) dEl.value = (lastSaturdayGlobal || peakDateGlobal || dEl.value || '');
+                const sEl = document.getElementById('onehour-start');
+                if (sEl) sEl.value = '21';
+                const lbl = document.getElementById('onehour-label');
+                if (lbl) lbl.textContent = '21:00 – 22:00';
+            } catch(_) {}
+            // Initialize defaults for current mode (ensure internal state too)
+            if (typeof setDefaultsForMode === 'function') {
+                try { setDefaultsForMode('1hour'); } catch (e) { console.warn('Defaults init skipped:', e); }
+            }
+
+            updateStatus('ready', 'CSV loaded');
+            updateVisualization();
+        } catch (err) {
+            console.error(err);
+            updateStatus('error', 'Error loading CSV');
+        }
+    }
+
+    // --- VISUALIZATION ---
+    function getColor(count) {
+        return count > 100 ? '#14532d' :
+               count > 60  ? '#16a34a' :
+               count > 30  ? '#4ade80' :
+               count > 15  ? '#facc15' :
+               count > 5   ? '#fde047' :
+               count > 0   ? '#ef4444' :
+                             '#e5e7eb';
+    }
+
+    function filterDataByDate(hexagons) {
+        const startDate = document.getElementById('start-date').value;
+        const endDate = document.getElementById('end-date').value;
+        if (!startDate && !endDate) return hexagons;
+        const filtered = {};
+        Object.entries(hexagons).forEach(([h3Index, hex]) => {
+            let totalCount = 0;
+            Object.entries(hex.deliveries_by_date || {}).forEach(([date, count]) => {
+                const d = new Date(date);
+                const s = startDate ? new Date(startDate) : new Date('2000-01-01');
+                const e = endDate ? new Date(endDate) : new Date('2100-12-31');
+                if (d >= s && d <= e) totalCount += count;
+            });
+            if (totalCount > 0) {
+                filtered[h3Index] = { ...hex, delivery_count: totalCount };
+            }
+        });
+        return filtered;
+    }
+
+    function updateStatistics(hexagons) {
+        // Rebuild filtered rows to drive stats reliably
+        const country = document.getElementById('country-filter')?.value || '';
+        const city = document.getElementById('city-filter')?.value || '';
+        const regionSel2 = document.getElementById('region-filter');
+        const selectedRegions2 = Array.from(regionSel2?.selectedOptions || []).map(o => o.value);
+        const onlyExtra2 = !!(document.getElementById('only-extra')?.checked);
+        const vertical = document.getElementById('vertical-filter')?.value || '';
+        const tm = document.getElementById('time-mode')?.value || 'all';
+        let rowsForStats = rawRows.filter(r => {
+            if (country && country !== '(All)' && normalizeStr(r.country) !== normalizeStr(country)) return false;
+            if (city && city !== '(All)' && normalizeStr(r.city) !== normalizeStr(city)) return false;
+            if (onlyExtra2) {
+                const carr = normalizeStr(r.carrier);
+                if (!(carr === 'extra' || carr.includes('extra'))) return false;
+            }
+            if (selectedRegions2 && selectedRegions2.length > 0) {
+                const rowRegion = normalizeStr(r.region);
+                const match = selectedRegions2.some(val => {
+                    const v = normalizeStr(val);
+                    return rowRegion === v || (v && rowRegion.includes(v));
+                });
+                if (!match) return false;
+            }
+            if (vertical && vertical !== '(All)' && normalizeStr(r.vertical) !== normalizeStr(vertical)) return false;
+            const d = r.date ? new Date(r.date) : null;
+            if (tm === 'slows') {
+                const sVal = ensureDateValue('slows-date'); if (!sVal) return false;
+                const s = new Date(sVal); const e = new Date(s); e.setDate(e.getDate()+3);
+                if (d < s || d > e) return false;
+            } else if (tm === 'nextday') {
+                const v = ensureDateValue('nextday-date'); if (!v) return false;
+                const s = new Date(v); const e = new Date(s); e.setDate(e.getDate()+1);
+                if (d < s || d >= e) return false;
+            } else if (tm === 'sameday') {
+                const v = ensureDateValue('sameday-date'); if (!v) return false;
+                const s = new Date(v); const e = new Date(s); e.setDate(e.getDate()+1);
+                if (d < s || d >= e) return false;
+                if (r.hour === null || r.hour < 13) return false;
+            } else if (tm === '3hour') {
+                const v = ensureDateValue('threehour-date'); if (!v) return false;
+                const s = new Date(v); const e = new Date(s); e.setDate(e.getDate()+1);
+                if (d < s || d >= e) return false;
+                const h0 = parseInt(document.getElementById('threehour-start').value || '0');
+                const h1 = Math.min(23, h0 + 3);
+                if (r.hour === null || r.hour < h0 || r.hour > h1) return false;
+            } else if (tm === '1hour') {
+                const v = ensureDateValue('onehour-date'); if (!v) return false;
+                const s = new Date(v); const e = new Date(s); e.setDate(e.getDate()+1);
+                if (d < s || d >= e) return false;
+                const h0 = parseInt(document.getElementById('onehour-start').value || '0');
+                if (r.hour === null || r.hour !== h0) return false;
+            } else if (tm === '30min') {
+                const v = ensureDateValue('thirty-date'); if (!v) return false;
+                const s = new Date(v); const e = new Date(s); e.setDate(e.getDate()+1);
+                if (d < s || d >= e) return false;
+                const slot = parseInt(document.getElementById('thirty-slot').value || '0');
+                const label = (function(slot){ const h=Math.floor(slot/2),m=(slot%2)*30,h2=Math.floor((slot+1)/2),m2=((slot+1)%2)*30; return `${String(h).padStart(2,'0')}:${m===0?'00':'30'}-${String(h2).padStart(2,'0')}:${m2===0?'00':'30'}`;})(slot);
+                const labelUnderscore = label.replace('-', '_');
+                const labelEnDash = label.replace('-', '–');
+                // Use hour_range string comparison if available
+                if (r.hour_range) {
+                    const hr = normalizeStr(r.hour_range);
+                    if (hr !== normalizeStr(labelUnderscore) && hr !== normalizeStr(label) && hr !== normalizeStr(labelEnDash)) return false;
+                } else {
+                    // fallback to minutes calculation
+                    const startMin = slot * 30;
+                    const endMin = Math.min(24*60, startMin + 30);
+                    const rowMin = (r.hour ?? 0)*60 + (r.minute ?? 0);
+                    if (rowMin < startMin || rowMin >= endMin) return false;
+                }
+            }
+            return true;
+        });
+        // If user has selected hexagons, filter rows to those cells at current resolution
+        if (selectedHexSet.size > 0) {
+            const res = parseInt(document.getElementById('resolution-slider').value || '8');
+            rowsForStats = rowsForStats.filter(r => {
+                try { const cell = h3.latLngToCell(r.lat, r.lng, res); return selectedHexSet.has(cell); } catch (_) { return false; }
+            });
+        }
+        const rowsWithDriver = rowsForStats.filter(r => r.driver_id);
+        const totalDeliveries = rowsForStats.length;
+        // Compute active hexagons from rowsForStats at current resolution
+        const res = parseInt(document.getElementById('resolution-slider').value || '9');
+        const activeSet = new Set();
+        rowsForStats.forEach(r => { try { const cell = h3.latLngToCell(r.lat, r.lng, res); activeSet.add(cell); } catch(_){} });
+        const activeHexagons = activeSet.size;
+        const totalEl = document.getElementById('total-deliveries');
+        const activeInline = document.getElementById('active-hexagons-inline');
+        const perHourDriverEl = null;
+        if (totalEl) totalEl.textContent = totalDeliveries.toLocaleString();
+        if (activeInline) {
+            // Show current window text + hex count
+            const tm = document.getElementById('time-mode').value;
+            let label = '';
+            if (tm === '30min') {
+                const slot = parseInt((document.getElementById('thirty-slot')?.value)||'0');
+                label = slotToLabel(slot);
+            } else if (tm === '3hour') {
+                const h0 = parseInt((document.getElementById('threehour-start')?.value)||'0');
+                const h1 = Math.min(23, h0+3);
+                label = `${String(h0).padStart(2,'0')}:00 – ${String(h1).padStart(2,'0')}:00`;
+            } else if (tm === '1hour') {
+                const h0 = parseInt((document.getElementById('onehour-start')?.value)||'0');
+                const h1 = Math.min(23, h0+1);
+                label = `${String(h0).padStart(2,'0')}:00 – ${String(h1).padStart(2,'0')}:00`;
+            } else {
+                label = 'Selected window';
+            }
+            activeInline.textContent = `${label} • ${activeHexagons.toLocaleString()} hex`;
+        }
+        // removed deliveries/hour/driver stat
+ 
+        // Render charts (Chart.js)
+        renderCharts(rowsForStats);
+    }
+
+    function renderCharts(rows) {
+        // Build daily window centered around selected date
+        const center = getSelectedDate();
+        const week = getWeekMonSun(center);
+        const windowDates = week.days; // Mon..Sun
+        // Filter rows to the non-time filters and those dates only (IGNORE time-mode filters)
+        const f = getNonTimeFilters();
+        const baseRows = rawRows; // use full dataset
+        const rowsDaily = baseRows.filter(r => rowMatchesNonTimeFilters(r, f) && windowDates.includes(r.date));
+
+        // Daily totals
+        const dailyTotals = windowDates.map(d => rowsDaily.filter(r => r.date===d).length);
+        // Daily extra share (two-series: Extra vs Rest)
+        const extraCounts = windowDates.map(d => rowsDaily.filter(r => normalizeStr(r.carrier)==='extra' && r.date===d).length);
+        const restCounts  = windowDates.map(d => rowsDaily.filter(r => normalizeStr(r.carrier)!=='extra' && r.date===d).length);
+        // Daily unique drivers (Extra)
+        const dailyDrivers = windowDates.map(d => {
+            const s = new Set(); rowsDaily.forEach(r => { if (normalizeStr(r.carrier)==='extra' && r.date===d && r.driver_id) s.add(r.driver_id); });
+            return s.size;
+        });
+        // Hourly distribution (all rows matching non-time filters, for hours 0..23 on selected day)
+        const selectedDayRows = baseRows.filter(r => rowMatchesNonTimeFilters(r, f) && r.date===center);
+        const hourly = Array(24).fill(0); selectedDayRows.forEach(r => { if (typeof r.hour==='number') hourly[r.hour]++; });
+
+        // Helper colors
+        const palette = ['#8b5cf6','#60a5fa','#34d399','#f59e0b','#f87171','#10b981','#f472b6','#f97316'];
+        const highlight = '#111827';
+        // Unified bar color (except Productivity chart)
+        const BAR_BASE = 'rgba(255,230,0,0.35)';   // soft yellow
+        const BAR_HI   = 'rgba(255,230,0,1)';      // solid yellow for emphasis/selection
+        const labels = windowDates.map(d => dayLabel(d));
+        const selectedIndex = windowDates.indexOf(center);
+        const opaque = (rgba) => rgba.replace(',0.35)', ',1)').replace(',0.4)', ',1)');
+
+        // Destroy previous charts
+        [chartCarrier, chartDrivers, chartHourly, chartProductivity].forEach(c => { if (c) { c.destroy(); } });
+
+        // no daily distribution
+
+        // Carrier share (daily stacked)
+        const ctx2 = document.getElementById('carrier-chart').getContext('2d');
+        const formatKDaily = (v)=> { const n = Number(v||0); if (n >= 1000) return (n/1000).toFixed(n%1000===0?0:1)+'k'; return String(n); };
+        const totalsDaily = windowDates.map((_,i)=> (extraCounts[i]||0)+(restCounts[i]||0));
+        chartCarrier = new Chart(ctx2, {
+            type: 'bar',
+            data: { labels, datasets: [
+                { label: 'Extra', data: extraCounts, backgroundColor: extraCounts.map((_,i)=> i===selectedIndex? BAR_HI : BAR_BASE), stack: 's' },
+                { label: 'Rest',  data: restCounts,  backgroundColor: restCounts.map((_,i)=> i===selectedIndex? BAR_HI : BAR_BASE), stack: 's' },
+                // Overlay dataset to print totals on top without affecting stack
+                { type: 'line', label: 'Total overlay', data: totalsDaily, borderWidth: 0, pointRadius: 0, borderColor: 'rgba(0,0,0,0)',
+                  datalabels: { display: true, anchor: 'end', align: 'end', color: '#111827', formatter: (v)=> formatKDaily(v), clip: false } }
+            ] },
+            options: { responsive: true, scales: { x: { stacked: true }, y: { stacked: true } }, plugins: { legend: { display: false }, tooltip: { callbacks: { title: items => items.map(it=>labels[it.dataIndex]), afterTitle: items => { const idx = items[0].dataIndex; const total = totalsDaily[idx]||0; const extra = extraCounts[idx]||0; const pct = total? Math.round(extra/total*100):0; return `Extra: ${pct}%`; } } }, datalabels: {
+                // Center the percentage (from 'Extra' dataset) vertically inside the bar
+                display: (ctx)=> ctx.dataset.label==='Extra' || ctx.dataset.label==='Total overlay',
+                color: '#000',
+                anchor: (ctx)=> ctx.dataset.label==='Total overlay' ? 'end' : 'center',
+                align: (ctx)=> ctx.dataset.label==='Total overlay' ? 'end' : 'center',
+                formatter: (v,ctx)=> {
+                    if (ctx.dataset.label==='Total overlay') return formatKDaily(v);
+                    const idx = ctx.dataIndex; const total = totalsDaily[idx]||0; const extra = extraCounts[idx]||0; const pct = total? Math.round(extra/total*100):0; return pct? `${pct}%` : '';
+                },
+                clip: false
+            } } }
+        });
+
+        // Unique drivers (Extra) daily
+        const ctx3 = document.getElementById('drivers-chart').getContext('2d');
+        chartDrivers = new Chart(ctx3, {
+            type: 'bar',
+            data: { labels, datasets: [{ label: 'Unique drivers (Extra)', data: dailyDrivers, backgroundColor: dailyDrivers.map((_,i)=> i===selectedIndex? BAR_HI : BAR_BASE),
+                    datalabels: { anchor: 'end', align: 'end', color: '#111827', formatter: (v)=> String(v), clamp: true } }] },
+            options: { responsive: true, plugins: { tooltip: { callbacks: { title: items => items.map(it=>labels[it.dataIndex]) } }, legend: { display: false } } }
+        });
+
+        // Highlight selected hours for 3-hour and 30-min modes
+        const tm = document.getElementById('time-mode').value;
+        let selectedHours = new Set();
+        if (tm === '3hour') {
+            const h0 = parseInt(document.getElementById('threehour-start').value||'0');
+            const h1 = Math.min(23, h0+3);
+            for (let h=h0; h<=h1; h++) selectedHours.add(h);
+        } else if (tm === '1hour') {
+            const h0 = parseInt(document.getElementById('onehour-start').value||'0');
+            const h1 = Math.min(23, h0+1);
+            for (let h=h0; h<=h1; h++) selectedHours.add(h);
+        } else if (tm === '30min') {
+            const slot = parseInt(document.getElementById('thirty-slot').value||'0');
+            selectedHours.add(Math.floor(slot/2));
+        }
+        // Reorder hours 08→23, 00→02
+        const hoursOrder = [...Array.from({length:16}, (_,i)=> i+8), 0, 1, 2];
+        const hourlyOrdered = hoursOrder.map(h => hourly[h] || 0);
+        const hourlyBgOrdered = hoursOrder.map(h => selectedHours.has(h)? BAR_HI : BAR_BASE);
+        const hourLabels = hoursOrder.map(h => String(h).padStart(2,'0'));
+        const ctx4 = document.getElementById('hourly-chart').getContext('2d');
+        // helper to format thousands
+        const formatK = (v) => {
+            const n = Number(v||0);
+            if (n >= 1000) return (n/1000).toFixed(n%1000===0?0:1)+'k';
+            return String(n);
+        };
+        const totalDayCount = hourly.reduce((a,b)=>a+b,0);
+        const percentOrdered = hoursOrder.map(h => totalDayCount ? Math.round(((hourly[h]||0)/totalDayCount)*100) : 0);
+        chartHourly = new Chart(ctx4, {
+            type: 'bar',
+            data: { labels: hourLabels, datasets: [
+                // Base bars: counts with absolute label on top
+                { label: 'Deliveries per hour', data: hourlyOrdered, backgroundColor: hourlyBgOrdered, borderWidth: 0, yAxisID: 'y',
+                  barPercentage: 0.9, categoryPercentage: 0.9,
+                  datalabels: { display: false } },
+                // Overlay labels: percent inside bars
+                { type: 'line', label: 'percent-overlay', data: hourlyOrdered, backgroundColor: 'rgba(0,0,0,0)', borderWidth: 0, pointRadius: 0, yAxisID: 'y',
+                  datalabels: { anchor: 'end', align: 'end', color: '#111827', formatter: (_,ctx)=> `${percentOrdered[ctx.dataIndex]}%`, display: (ctx)=> (hourlyOrdered[ctx.dataIndex]>0), clip: false } }
+            ] },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        ticks: { callback: (v)=> formatK(v), maxTicksLimit: 6 },
+                        grid: { color: 'rgba(0,0,0,0.05)' }
+                    },
+                    x: { grid: { display: false } }
+                },
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            title: items => items.map(it=> `${center} • ${WEEKDAY[new Date(center+'T00:00:00Z').getUTCDay()]}`),
+                            label: ctx => `${formatK(hourlyOrdered[ctx.dataIndex])} deliveries • ${percentOrdered[ctx.dataIndex]}% of day`
+                        }
+                    }
+                }
+            }
+        });
+
+        // Productivity (Extra) per hour = deliveries_per_hour / unique_drivers_extra_that_hour
+        const extraRows = selectedDayRows.filter(r => normalizeStr(r.carrier)==='extra' && r.driver_id);
+        const deliveriesByHour = Array(24).fill(0);
+        const driversByHour = Array.from({length:24}, ()=> new Set());
+        extraRows.forEach(r => { if (typeof r.hour==='number') { deliveriesByHour[r.hour]++; driversByHour[r.hour].add(r.driver_id); } });
+        const productivity = deliveriesByHour.map((num, h) => {
+            const d = driversByHour[h].size; return d>0 ? (num/d) : 0;
+        });
+        // Color bins for productivity
+        const colorForProd = (val, selected) => {
+            let base = 'rgba(239,68,68,'; // red <1.5
+            if (val >= 3) base = 'rgba(34,197,94,';           // green ≥3
+            else if (val >= 2.5) base = 'rgba(163,230,102,'; // yellow-green 2.5-3
+            else if (val >= 2) base = 'rgba(250,204,21,';    // yellow 2-2.5
+            else if (val >= 1.5) base = 'rgba(245,158,11,';  // orange 1.5-2
+            return base + (selected ? '1)' : '0.35)');
+        };
+        const productivityOrdered = hoursOrder.map(h => Number((productivity[h] || 0).toFixed(2)));
+        const prodBgOrdered = hoursOrder.map((h,i)=> colorForProd(productivity[h]||0, selectedHours.has(h)));
+        const ctx5El = document.getElementById('productivity-chart');
+        if (ctx5El) {
+            const ctx5 = ctx5El.getContext('2d');
+            chartProductivity = new Chart(ctx5, {
+                type: 'bar',
+                data: { labels: hourLabels, datasets: [{ label: 'Deliveries per driver (Extra)', data: productivityOrdered, backgroundColor: prodBgOrdered, borderWidth: 0,
+                        datalabels: { anchor: 'end', align: 'end', color: '#111827', formatter: (v)=> Number(v).toFixed(1), clamp: true } }] },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            suggestedMin: 0,
+                            ticks: { callback: v => Number(v).toFixed(1), maxTicksLimit: 6 },
+                            grid: { color: 'rgba(0,0,0,0.05)' }
+                        },
+                        x: { grid: { display: false } }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { callbacks: { label: ctx => `${Number(ctx.parsed.y).toFixed(1)} shp/driver` } }
+                    }
+                }
+            });
+        }
+    }
+
+    function drawMap(hexagons) {
+        if (geojsonLayer) map.removeLayer(geojsonLayer);
+        const features = Object.entries(hexagons).map(([h3Index, hex]) => {
+            const boundary = h3.cellToBoundary(h3Index, true);
+            // Ensure closed linear ring for GeoJSON
+            if (boundary.length && (boundary[0][0] !== boundary[boundary.length-1][0] || boundary[0][1] !== boundary[boundary.length-1][1])) {
+                boundary.push(boundary[0]);
+            }
+            return {
+                type: 'Feature',
+                properties: { h3Index, deliveryCount: hex.delivery_count, centerLat: hex.center_lat, centerLng: hex.center_lng },
+                geometry: { type: 'Polygon', coordinates: [boundary] }
+            };
+        });
+        const colorModeProd = document.getElementById('color-mode-toggle')?.checked !== false; // default ON
+        geojsonLayer = L.geoJSON(features, {
+            style: f => {
+                const isSel = selectedHexSet.has(f.properties.h3Index);
+                const hex = hexagons[f.properties.h3Index];
+                const fill = colorModeProd ? colorForProdSolid((hex?.prod)||0) : getVolumeColor(f.properties.deliveryCount);
+                return {
+                    fillColor: fill,
+                    weight: isSel ? 3 : 0.8,
+                    opacity: 1,
+                    color: isSel ? '#2563eb' : '#94a3b8',
+                    fillOpacity: isSel ? 0.7 : 0.4
+                };
+            },
+            onEachFeature: (feature, layer) => {
+                layer.getElement && layer.on('add', () => { try { layer.getElement().style.cursor = 'pointer'; } catch(_){} });
+                layer.on({
+                    mouseover: e => { const l = e.target; l.setStyle({ weight: 2, color: '#111827' }); },
+                    mouseout: e => { geojsonLayer.resetStyle(e.target); },
+                    click: e => { showHexagonInfo(feature.properties); }
+                });
+            }
+        }).addTo(map);
+        // Fit bounds to ensure all hexagons are visible, accounting for side panels
+        if (features.length > 0) {
+            try {
+                const bounds = geojsonLayer.getBounds();
+                // 1) Ajustar zoom para que entren todos los hex sin sesgo
+                map.fitBounds(bounds, { padding: [20, 20], animate: false });
+                // 2) Compensar el panel derecho: mover el mapa a la derecha para que el contenido se desplace a la izquierda
+                const rightPanel = document.getElementById('info-panel');
+                const panelW = (rightPanel ? rightPanel.getBoundingClientRect().width : 450) || 450;
+                const shift = Math.round(panelW * 0.65 + 10); // un poco más a la izquierda visual
+                map.panBy([shift, 0], { animate: false });
+            } catch (_) {}
+        }
+    }
+
+    function showHexagonInfo(props) {
+        // Toggle selection
+        const cell = props.h3Index;
+        if (selectedHexSet.has(cell)) selectedHexSet.delete(cell); else selectedHexSet.add(cell);
+        // Redraw layer styles to indicate selection
+        geojsonLayer.eachLayer(l => {
+            const id = l.feature.properties.h3Index;
+            const isSel = selectedHexSet.has(id);
+            l.setStyle({ weight: isSel ? 3 : 0.8, color: isSel ? '#2563eb' : '#94a3b8', fillOpacity: isSel ? 0.7 : 0.4 });
+        });
+        // Recompute stats with selection
+        updateVisualization();
+    }
+
+    function updateVisualization() {
+        if (!rawRows.length) return;
+        document.getElementById('resolution-label').textContent = `H3-${currentResolution}`;
+        // Apply filters on raw rows
+        const country = document.getElementById('country-filter')?.value || '';
+        const city = document.getElementById('city-filter')?.value || '';
+        const regionSel2 = document.getElementById('region-filter');
+        const selectedRegions2 = Array.from(regionSel2?.selectedOptions || []).map(o => o.value);
+        const onlyExtra2 = !!(document.getElementById('only-extra')?.checked);
+        const vertical = document.getElementById('vertical-filter')?.value || '';
+        const filteredRows = rawRows.filter(r => {
+            if (country && country !== '(All)' && normalizeStr(r.country) !== normalizeStr(country)) return false;
+            if (city && city !== '(All)' && normalizeStr(r.city) !== normalizeStr(city)) return false;
+            if (onlyExtra2) {
+                const carr = normalizeStr(r.carrier);
+                if (!(carr === 'extra' || carr.includes('extra'))) return false;
+            }
+            if (selectedRegions2 && selectedRegions2.length > 0) {
+                const rowRegion = normalizeStr(r.region);
+                const match = selectedRegions2.some(val => {
+                    const v = normalizeStr(val);
+                    return rowRegion === v || (v && rowRegion.includes(v));
+                });
+                if (!match) return false;
+            }
+            if (vertical && vertical !== '(All)' && normalizeStr(r.vertical) !== normalizeStr(vertical)) return false;
+            // Apply time-mode presets
+            const mode = document.getElementById('time-mode')?.value || 'all';
+            const d = r.date ? new Date(r.date) : null;
+            if (mode !== 'all') {
+                if (!d) return false;
+                if (mode === 'slows') {
+                    const sVal = ensureDateValue('slows-date'); if (!sVal) return false;
+                    const s = new Date(sVal); const e = new Date(s); e.setDate(e.getDate()+3);
+                    if (d < s || d > e) return false;
+                } else if (mode === 'nextday') {
+                    const v = ensureDateValue('nextday-date'); if (!v) return false;
+                    const s = new Date(v); const e = new Date(s); e.setDate(e.getDate()+1);
+                    if (d < s || d >= e) return false;
+                } else if (mode === 'sameday') {
+                    const v = ensureDateValue('sameday-date'); if (!v) return false;
+                    const s = new Date(v); const e = new Date(s); e.setDate(e.getDate()+1);
+                    if (d < s || d >= e) return false;
+                    if (r.hour === null || r.hour < 13) return false;
+                } else if (mode === '3hour') {
+                    const v = ensureDateValue('threehour-date'); if (!v) return false;
+                    const s = new Date(v); const e = new Date(s); e.setDate(e.getDate()+1);
+                    if (d < s || d >= e) return false;
+                    const h0 = parseInt(document.getElementById('threehour-start').value || '0');
+                    const h1 = Math.min(23, h0 + 3);
+                    if (r.hour === null || r.hour < h0 || r.hour > h1) return false;
+                } else if (mode === '1hour') {
+                    const v = ensureDateValue('onehour-date'); if (!v) return false;
+                    const s = new Date(v); const e = new Date(s); e.setDate(e.getDate()+1);
+                    if (d < s || d >= e) return false;
+                    const h0 = parseInt(document.getElementById('onehour-start').value || '0');
+                    if (r.hour === null || r.hour !== h0) return false;
+                } else if (mode === '30min') {
+                    const v = ensureDateValue('thirty-date'); if (!v) return false;
+                    const s = new Date(v); const e = new Date(s); e.setDate(e.getDate()+1);
+                    if (d < s || d >= e) return false;
+                    const slot = parseInt(document.getElementById('thirty-slot').value || '0');
+                    const label = (function(slot){ const h=Math.floor(slot/2),m=(slot%2)*30,h2=Math.floor((slot+1)/2),m2=((slot+1)%2)*30; return `${String(h).padStart(2,'0')}:${m===0?'00':'30'}-${String(h2).padStart(2,'0')}:${m2===0?'00':'30'}`;})(slot);
+                    const labelUnderscore = label.replace('-', '_');
+                    const labelEnDash = label.replace('-', '–');
+                    // Use hour_range string comparison if available
+                    if (r.hour_range) {
+                        const hr = normalizeStr(r.hour_range);
+                        if (hr !== normalizeStr(labelUnderscore) && hr !== normalizeStr(label) && hr !== normalizeStr(labelEnDash)) return false;
+                    } else {
+                        // fallback to minutes calculation
+                        const startMin = slot * 30;
+                        const endMin = Math.min(24*60, startMin + 30);
+                        const rowMin = (r.hour ?? 0)*60 + (r.minute ?? 0);
+                        if (rowMin < startMin || rowMin >= endMin) return false;
+                    }
+                }
+            }
+            return true;
+        });
+
+        // Aggregate to hexagons at current resolution
+        const hexagons = {};
+        // Totals by driver-hour across the filtered window (for p_dh)
+        const driverHourTotals = new Map(); // key: `${driver}|${hour}` -> total shipments by that driver in that hour
+        for (const row of filteredRows) {
+            try {
+                const cell = h3.latLngToCell(row.lat, row.lng, currentResolution);
+                const hex = hexagons[cell] || { delivery_count: 0, center_lat: null, center_lng: null, extra_deliveries_by_hour: Array(24).fill(0), extra_drivers_by_hour: Array.from({length:24}, ()=> new Set()), extra_driver_counts_by_hour: Array(24).fill(null) };
+                hex.delivery_count += 1;
+                // Track extra driver/hour for productivity
+                if (normalizeStr(row.carrier)==='extra' && typeof row.hour==='number' && row.driver_id) {
+                    hex.extra_deliveries_by_hour[row.hour] += 1;
+                    hex.extra_drivers_by_hour[row.hour].add(row.driver_id);
+                    if (!hex.extra_driver_counts_by_hour[row.hour]) hex.extra_driver_counts_by_hour[row.hour] = new Map();
+                    const map = hex.extra_driver_counts_by_hour[row.hour];
+                    map.set(row.driver_id, (map.get(row.driver_id)||0)+1);
+                    const key = `${row.driver_id}|${row.hour}`;
+                    driverHourTotals.set(key, (driverHourTotals.get(key)||0)+1);
+                }
+                if (hex.center_lat === null) { const [clat, clng] = h3.cellToLatLng(cell); hex.center_lat = clat; hex.center_lng = clng; }
+                hexagons[cell] = hex;
+            } catch (e) { /* skip invalid */ }
+        }
+
+        updateStatistics(hexagons);
+        // Compute per-hex productivity (store in hex.prod for coloring)
+        const consideredHours = getConsideredHours();
+        Object.entries(hexagons).forEach(([cell, hex]) => {
+            let sumHourValues = 0; let hoursCount = 0;
+            consideredHours.forEach(h => {
+                const perDriver = hex.extra_driver_counts_by_hour[h];
+                if (!perDriver) return;
+                let totalHexH = 0; perDriver.forEach(v=> totalHexH += v);
+                if (totalHexH <= 0) return;
+                let sumWeighted = 0;
+                perDriver.forEach((cnt, driverId) => {
+                    const key = `${driverId}|${h}`;
+                    const pdh = driverHourTotals.get(key) || 0;
+                    const w = cnt / totalHexH;
+                    sumWeighted += pdh * w;
+                });
+                sumHourValues += sumWeighted;
+                hoursCount += 1;
+            });
+            hex.prod = hoursCount>0 ? (sumHourValues / hoursCount) : 0;
+        });
+
+        // Dynamic volume bins based on filtered hexagons (compute before drawing)
+        (function computeVolumeBins(){
+            let minC = Infinity, maxC = -Infinity; let any=false;
+            Object.values(hexagons).forEach(h => { const c=h.delivery_count||0; if (c<minC) minC=c; if (c>maxC) maxC=c; any=true; });
+            if (!any) { currentVolumeBins = null; return; }
+            if (maxC <= minC) { currentVolumeBins = [minC,minC,minC,minC,minC]; return; }
+            const step = (maxC - minC) / 6;
+            currentVolumeBins = [minC+step, minC+2*step, minC+3*step, minC+4*step, minC+5*step];
+        })();
+
+        drawMap(hexagons);
+        // Optionally render per-hex label for productivity (Extra)
+        const onlyExtraLbl = document.getElementById('only-extra')?.checked;
+        if (onlyExtraLbl) {
+            // Lightweight approach: use Leaflet divIcons as labels
+            // First, remove previous label layer if exists
+            if (window.__hexLabelsLayer) { try { map.removeLayer(window.__hexLabelsLayer); } catch(_){} }
+            const labelMarkers = [];
+            Object.entries(hexagons).forEach(([cell, hex]) => {
+                const value = Number((hex.prod||0).toFixed(1));
+                const [clat, clng] = h3.cellToLatLng(cell);
+                const html = `<div class="hex-label-inner">${value.toFixed(1)}</div>`;
+                const icon = L.divIcon({ className: 'hex-label', html, iconSize: [0,0], iconAnchor: [0,0] });
+                const marker = L.marker([clat, clng], { icon, interactive: false });
+                labelMarkers.push(marker);
+            });
+            window.__hexLabelsLayer = L.layerGroup(labelMarkers).addTo(map);
+        } else {
+            if (window.__hexLabelsLayer) { try { map.removeLayer(window.__hexLabelsLayer); window.__hexLabelsLayer = null; } catch(_){} }
+        }
+        // Update legend according to color mode
+        const cmToggle = document.getElementById('color-mode-toggle');
+        updateLegend(cmToggle && cmToggle.checked !== false ? 'prod' : 'vol');
+    }
+
+    function resetDateFilter() {
+        document.getElementById('start-date').value = '';
+        document.getElementById('end-date').value = '';
+        updateVisualization();
+    }
+
+    function updateDateRangeLabel(dates) {
+        const s = parseInt(document.getElementById('date-start').value);
+        const e = parseInt(document.getElementById('date-end').value);
+        const minIdx = Math.min(s, e), maxIdx = Math.max(s, e);
+        const txt = dates && dates.length ? `${dates[minIdx]} – ${dates[maxIdx]}` : 'Todas';
+        document.getElementById('date-range-label').textContent = txt;
+    }
+
+    // --- LISTENERS ---
+    document.addEventListener('DOMContentLoaded', () => {
+        initMap();
+        loadCsv();
+        document.getElementById('resolution-slider').addEventListener('input', (e) => { selectedHexSet.clear(); currentResolution = parseInt(e.target.value); updateVisualization(); });
+        // time-mode UI
+        function showInputs(mode){
+            ['slows','nextday','sameday','3hour','1hour','30min'].forEach(m=>{
+                const key = (m==='3hour')?'3hour':(m==='1hour'?'1hour':m);
+                const el=document.getElementById(`inputs-${key}`);
+                if(el){ el.style.display = (mode===m)?'block':'none'; }
+            });
+            try { setDefaultsForMode(mode); } catch (e) { /* no-op */ }
+        }
+        document.body.classList.add('panel-open');
+        // Default to 1-hour and Only Extra ON (fecha/hora se setean desde datos)
+        const tmSel = document.getElementById('time-mode');
+        if (tmSel) tmSel.value = '1hour';
+        showInputs('1hour');
+        // Fecha/hora por defecto se aplican tras cargar datos via setDefaultsForMode
+        const onlyInit = document.getElementById('only-extra');
+        if (onlyInit) { onlyInit.checked = true; }
+        const datasetSel = document.getElementById('dataset-select');
+        if (datasetSel) {
+            currentDataPath = datasetSel.value;
+            datasetSel.addEventListener('change', () => {
+                currentDataPath = datasetSel.value;
+                // clear current layers/labels
+                try { if (geojsonLayer) { map.removeLayer(geojsonLayer); geojsonLayer = null; } } catch(_){}
+                try { if (window.__hexLabelsLayer) { map.removeLayer(window.__hexLabelsLayer); window.__hexLabelsLayer = null; } } catch(_){}
+                loadCsv();
+            });
+        }
+        (function initThirtyDefault(){
+            const tm = document.getElementById('time-mode').value;
+            const dEl = document.getElementById('thirty-date');
+            const sEl = document.getElementById('thirty-slot');
+            const lbl = document.getElementById('thirty-label');
+            // No seteamos fecha para 1-hour acá; se hace luego en setDefaultsForMode con lastSaturdayGlobal
+            const DEFAULT_DATE = lastSaturdayGlobal || peakDateGlobal || '';
+            if (tm === '30min' && sEl && lbl) {
+                if (DEFAULT_DATE && dEl && !dEl.value) dEl.value = DEFAULT_DATE;
+                sEl.value = '42'; // 21:00–21:30
+                const slot = parseInt(sEl.value||'42');
+                const h=Math.floor(slot/2),m=(slot%2)*30,h2=Math.floor((slot+1)/2),m2=((slot+1)%2)*30;
+                lbl.textContent = `${String(h).padStart(2,'0')}:${m===0?'00':'30'} – ${String(h2).padStart(2,'0')}:${m2===0?'00':'30'}`;
+            }
+        })();
+        const btnToggle = document.getElementById('btn-toggle-panel');
+        if (btnToggle) {
+            btnToggle.addEventListener('click', () => {
+                if (document.body.classList.contains('panel-open')) {
+                    document.body.classList.remove('panel-open');
+                    document.body.classList.add('panel-hidden');
+                } else {
+                    document.body.classList.remove('panel-hidden');
+                    document.body.classList.add('panel-open');
+                }
+            });
+        }
+        document.getElementById('time-mode').addEventListener('change', (e)=>{
+            showInputs(e.target.value);
+            const DEFAULT_DATE = lastSaturdayGlobal || peakDateGlobal || '2025-08-09';
+            if (e.target.value === 'slows') {
+                const el = document.getElementById('slows-date');
+                if (el && !el.value) el.value = DEFAULT_DATE;
+            }
+            if (e.target.value === 'nextday') {
+                const el = document.getElementById('nextday-date');
+                if (el && !el.value) el.value = DEFAULT_DATE;
+            }
+            if (e.target.value === 'sameday') {
+                const el = document.getElementById('sameday-date');
+                if (el && !el.value) el.value = DEFAULT_DATE;
+            }
+            if (e.target.value === '3hour') {
+                const dEl = document.getElementById('threehour-date');
+                if (dEl && !dEl.value) dEl.value = DEFAULT_DATE;
+                const h0 = parseInt(document.getElementById('threehour-start').value||'0');
+                const h1 = Math.min(23, h0+3);
+                const lbl = document.getElementById('threehour-label');
+                if (lbl) lbl.textContent = `${String(h0).padStart(2,'0')}:00 – ${String(h1).padStart(2,'0')}:00`;
+            }
+            if (e.target.value === '1hour') {
+                const dEl = document.getElementById('onehour-date');
+                if (dEl && !dEl.value) dEl.value = DEFAULT_DATE;
+                const h0 = parseInt(document.getElementById('onehour-start').value||'0');
+                const lbl = document.getElementById('onehour-label');
+                if (lbl) lbl.textContent = `${String(h0).padStart(2,'0')}:00 – ${String((h0+1)%24).padStart(2,'0')}:00`;
+            }
+            if (e.target.value === '30min') {
+                const dEl = document.getElementById('thirty-date');
+                const sEl = document.getElementById('thirty-slot');
+                if (dEl && !dEl.value) dEl.value = DEFAULT_DATE;
+                const lbl = document.getElementById('thirty-label');
+                if (lbl && sEl) {
+                    // Default to 21:00–21:30
+                    sEl.value = '42';
+                    const slot = parseInt(sEl.value||'42');
+                    const h=Math.floor(slot/2),m=(slot%2)*30,h2=Math.floor((slot+1)/2),m2=((slot+1)%2)*30;
+                    lbl.textContent = `${String(h).padStart(2,'0')}:${m===0?'00':'30'} – ${String(h2).padStart(2,'0')}:${m2===0?'00':'30'}`;
+                }
+            }
+            updateVisualization();
+        });
+        // Robust listeners (handle missing elements gracefully)
+        const addChange = (id, evt='change') => { const el=document.getElementById(id); if (el) el.addEventListener(evt, updateVisualization); };
+        ['country-filter','city-filter','region-filter','only-extra','color-mode-toggle'].forEach(id=> addChange(id));
+        // Time-mode handlers
+        ['slows-date','nextday-date','sameday-date','threehour-date','onehour-date'].forEach(id=> addChange(id));
+        const ds = [
+            ['slows-date-slider','slows-date'],
+            ['nextday-date-slider','nextday-date'],
+            ['sameday-date-slider','sameday-date'],
+            ['threehour-date-slider','threehour-date'],
+            ['onehour-date-slider','onehour-date'],
+            ['thirty-date-slider','thirty-date']
+        ];
+        ds.forEach(([sid,iid])=>{
+            const s=document.getElementById(sid); const i=document.getElementById(iid);
+            if (s) s.addEventListener('input', updateVisualization);
+            if (i) i.addEventListener('change', updateVisualization);
+        });
+        document.getElementById('threehour-start').addEventListener('input', () => {
+            const h0 = parseInt(document.getElementById('threehour-start').value||'0');
+            const h1 = Math.min(23, h0+3);
+            const lbl = document.getElementById('threehour-label');
+            if (lbl) lbl.textContent = `${String(h0).padStart(2,'0')}:00 – ${String(h1).padStart(2,'0')}:00`;
+            updateVisualization();
+        });
+        document.getElementById('onehour-start').addEventListener('input', () => {
+            const h0 = parseInt(document.getElementById('onehour-start').value||'0');
+            const h1 = Math.min(23, h0+1);
+            const lbl = document.getElementById('onehour-label');
+            if (lbl) lbl.textContent = `${String(h0).padStart(2,'0')}:00 – ${String(h1).padStart(2,'0')}:00`;
+            updateVisualization();
+        });
+        document.getElementById('thirty-date').addEventListener('change', updateVisualization);
+        const thirtySlotEl = document.getElementById('thirty-slot');
+        if (thirtySlotEl) {
+            const updateThirtyUI = () => {
+                const lbl = document.getElementById('thirty-label');
+                const val = parseInt(thirtySlotEl.value || '42');
+                if (lbl) lbl.textContent = slotToLabel(val);
+                updateVisualization();
+            };
+            thirtySlotEl.addEventListener('input', updateThirtyUI);
+            thirtySlotEl.addEventListener('change', updateThirtyUI);
+        }
+    });
+
+    function setDefaultsForMode(mode) {
+        const DEFAULT_DATE = lastSaturdayGlobal || peakDateGlobal || '2025-08-09';
+        if (mode === '1hour') {
+            const d = document.getElementById('onehour-date'); if (d && !d.value) d.value = DEFAULT_DATE;
+            // default fixed to 21:00
+            let h0 = 21;
+            const s = document.getElementById('onehour-start'); if (s) s.value = String(h0);
+            const lbl = document.getElementById('onehour-label'); if (lbl) lbl.textContent = `${String(h0).padStart(2,'0')}:00 – ${String((h0+1)%24).padStart(2,'0')}:00`;
+        }
+        if (mode === '3hour') {
+            const d = document.getElementById('threehour-date'); if (d && !d.value) d.value = DEFAULT_DATE;
+            // choose best 4-hour window
+            const arr = (dailyHourCounts[DEFAULT_DATE] || Array(24).fill(0));
+            let bestSum = -1, bestH = 0; for (let h=0; h<=23; h++){ const s4 = arr[h]+(arr[h+1]||0)+(arr[h+2]||0)+(arr[h+3]||0); if (s4>bestSum){bestSum=s4; bestH=h;} }
+            const s = document.getElementById('threehour-start'); if (s) s.value = String(bestH);
+            const lbl = document.getElementById('threehour-label'); if (lbl) lbl.textContent = `${String(bestH).padStart(2,'0')}:00 – ${String(Math.min(23,bestH+3)).padStart(2,'0')}:00`;
+        }
+        if (mode === '30min') {
+            const d = document.getElementById('thirty-date'); if (d && !d.value) d.value = DEFAULT_DATE;
+            // choose peak 30-min slot
+            const arr = (dailyHalfHourCounts[DEFAULT_DATE] || Array(48).fill(0));
+            let slot = 0, best = -1; for (let i=0;i<48;i++){ if (arr[i]>best){best=arr[i]; slot=i;} }
+            const s = document.getElementById('thirty-slot'); if (s) s.value = String(slot);
+            const h=Math.floor(slot/2),m=(slot%2)*30,h2=Math.floor((slot+1)/2),m2=((slot+1)%2)*30; const lbl = document.getElementById('thirty-label'); if (lbl) lbl.textContent = `${String(h).padStart(2,'0')}:${m===0?'00':'30'} – ${String(h2).padStart(2,'0')}:${m2===0?'00':'30'}`;
+        }
+        if (mode === 'slows') {
+            const d = document.getElementById('slows-date'); if (d && !d.value) d.value = DEFAULT_DATE;
+        }
+        if (mode === 'nextday') {
+            const d = document.getElementById('nextday-date'); if (d && !d.value) d.value = DEFAULT_DATE;
+        }
+        if (mode === 'sameday') {
+            const d = document.getElementById('sameday-date'); if (d && !d.value) d.value = DEFAULT_DATE;
+        }
+    }
+    </script>
 </body>
 </html>
 
